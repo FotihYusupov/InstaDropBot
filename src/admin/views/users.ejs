@@ -1,0 +1,190 @@
+<%- include('partials/header') %>
+<%- include('partials/sidebar') %>
+
+<div class="flex-1 flex flex-col overflow-hidden bg-slate-950">
+  <%- include('partials/navbar') %>
+  
+  <main class="flex-1 overflow-y-auto p-6 md:p-8 space-y-6">
+    
+    <!-- Title and Action Bar -->
+    <div class="flex flex-col md:flex-row md:items-center md:justify-between space-y-4 md:space-y-0">
+      <div>
+        <h2 class="text-2xl font-bold text-white tracking-tight">Bot Users</h2>
+        <p class="text-sm text-slate-400">Total registered users: <span class="font-bold text-white"><%= totalCount %></span></p>
+      </div>
+    </div>
+
+    <!-- Filters and Search Form -->
+    <div class="bg-slate-900 border border-slate-800 p-4 rounded-2xl shadow-lg flex flex-col md:flex-row gap-4 justify-between items-center">
+      <form action="/admin/users" method="GET" class="w-full md:w-auto flex flex-col sm:flex-row gap-3 items-stretch sm:items-center">
+        <!-- Search Input -->
+        <div class="relative w-full sm:w-72">
+          <span class="absolute inset-y-0 left-0 pl-3 flex items-center text-slate-500">
+            <i class="fa-solid fa-magnifying-glass text-xs"></i>
+          </span>
+          <input type="text" 
+                 name="search" 
+                 value="<%= search %>" 
+                 placeholder="Search ID, name, username..." 
+                 class="w-full pl-9 pr-3 py-2 text-xs rounded-xl bg-slate-950 border border-slate-800 text-slate-100 focus:outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 transition-all">
+        </div>
+
+        <!-- Sorting Selects -->
+        <div class="flex items-center space-x-2">
+          <select name="sortBy" 
+                  class="bg-slate-950 border border-slate-800 text-slate-300 rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-brand-500">
+            <option value="createdAt" <%= sortBy === 'createdAt' ? 'selected' : '' %>>Registration Date</option>
+            <option value="lastActivityAt" <%= sortBy === 'lastActivityAt' ? 'selected' : '' %>>Last Activity</option>
+            <option value="totalDownloads" <%= sortBy === 'totalDownloads' ? 'selected' : '' %>>Downloads</option>
+          </select>
+          
+          <select name="sortOrder" 
+                  class="bg-slate-950 border border-slate-800 text-slate-300 rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-brand-500">
+            <option value="desc" <%= sortOrder === 'desc' ? 'selected' : '' %>>Descending</option>
+            <option value="asc" <%= sortOrder === 'asc' ? 'selected' : '' %>>Ascending</option>
+          </select>
+        </div>
+
+        <button type="submit" 
+                class="px-4 py-2 bg-brand-600 hover:bg-brand-500 text-white rounded-xl text-xs font-semibold shadow transition-all">
+          Apply Filters
+        </button>
+        
+        <% if (search || sortBy !== 'createdAt' || sortOrder !== 'desc') { %>
+          <a href="/admin/users" class="px-4 py-2 border border-slate-800 hover:bg-slate-800 text-slate-400 hover:text-white rounded-xl text-xs font-semibold transition-all text-center">
+            Clear
+          </a>
+        <% } %>
+      </form>
+    </div>
+
+    <!-- Users Table Card -->
+    <div class="bg-slate-900 border border-slate-800 rounded-2xl shadow-lg overflow-hidden">
+      <div class="overflow-x-auto">
+        <table class="w-full text-left border-collapse">
+          <thead>
+            <tr class="bg-slate-950 border-b border-slate-800 text-slate-400 text-[10px] font-bold uppercase tracking-wider">
+              <th class="px-6 py-4">Telegram User</th>
+              <th class="px-6 py-4">Telegram ID</th>
+              <th class="px-6 py-4">Last Activity</th>
+              <th class="px-6 py-4">Registered</th>
+              <th class="px-6 py-4 text-center">Downloads Status</th>
+              <th class="px-6 py-4 text-right">Actions</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-slate-800/50">
+            <% if (users.length === 0) { %>
+              <tr>
+                <td colspan="6" class="px-6 py-12 text-center text-slate-500">
+                  <div class="flex flex-col items-center justify-center space-y-3">
+                    <i class="fa-solid fa-users-slash text-3xl text-slate-700"></i>
+                    <p class="text-sm font-semibold">No users found</p>
+                    <p class="text-xs">Try broadening your search query filters.</p>
+                  </div>
+                </td>
+              </tr>
+            <% } %>
+            <% users.forEach(user => { %>
+              <tr class="hover:bg-slate-850/30 transition-all group">
+                <!-- User Profile -->
+                <td class="px-6 py-4.5">
+                  <div class="flex items-center space-x-3">
+                    <div class="w-8 h-8 rounded-lg bg-slate-800 border border-slate-700 flex items-center justify-center text-slate-300 font-bold text-xs select-none">
+                      <%= (user.firstName || user.username || '?').substring(0, 1).toUpperCase() %>
+                    </div>
+                    <div>
+                      <span class="text-sm font-semibold text-white block">
+                        <%= user.firstName ? `${user.firstName} ${user.lastName || ''}` : 'No Name' %>
+                      </span>
+                      <span class="text-xs text-slate-400">
+                        <%= user.username ? `@${user.username}` : 'no-username' %>
+                      </span>
+                    </div>
+                  </div>
+                </td>
+                
+                <!-- ID -->
+                <td class="px-6 py-4.5 text-xs font-mono text-slate-300">
+                  <%= user.telegramId %>
+                </td>
+
+                <!-- Last Activity -->
+                <td class="px-6 py-4.5 text-xs text-slate-300">
+                  <%= user.lastActivityAt ? new Date(user.lastActivityAt).toLocaleString('ru-RU', { dateStyle: 'short', timeStyle: 'short' }) : 'Never' %>
+                </td>
+
+                <!-- Registration -->
+                <td class="px-6 py-4.5 text-xs text-slate-400">
+                  <%= new Date(user.createdAt).toLocaleDateString('ru-RU') %>
+                </td>
+
+                <!-- Downloads stats -->
+                <td class="px-6 py-4.5 text-center">
+                  <div class="flex flex-col items-center justify-center space-y-1">
+                    <span class="text-xs font-bold text-white"><%= user.totalDownloads || 0 %> total</span>
+                    <div class="flex items-center space-x-1.5 text-[10px] text-slate-500">
+                      <span class="text-emerald-400"><i class="fa-solid fa-circle-check"></i> <%= user.successCount || 0 %></span>
+                      <span>•</span>
+                      <span class="text-rose-400"><i class="fa-solid fa-circle-xmark"></i> <%= user.failedCount || 0 %></span>
+                    </div>
+                  </div>
+                </td>
+
+                <!-- Action links -->
+                <td class="px-6 py-4.5 text-right">
+                  <a href="/admin/users/<%= user.telegramId %>" 
+                     class="inline-flex items-center space-x-1.5 px-3 py-1.5 border border-slate-800 hover:border-brand-500/50 hover:bg-brand-500/5 text-slate-300 hover:text-brand-400 rounded-lg text-xs font-semibold transition-all">
+                    <span>Analyze</span>
+                    <i class="fa-solid fa-arrow-right text-[10px]"></i>
+                  </a>
+                </td>
+              </tr>
+            <% }) %>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Pagination Footer -->
+      <% if (totalPages > 1) { %>
+        <div class="bg-slate-950 border-t border-slate-800/80 px-6 py-4.5 flex items-center justify-between">
+          <span class="text-xs text-slate-500">
+            Page <span class="font-bold text-slate-300"><%= currentPage %></span> of <span class="font-bold text-slate-300"><%= totalPages %></span>
+          </span>
+          <div class="flex space-x-1">
+            <% if (currentPage > 1) { %>
+              <a href="/admin/users?page=<%= currentPage - 1 %>&search=<%= search %>&sortBy=<%= sortBy %>&sortOrder=<%= sortOrder %>" 
+                 class="px-3 py-1.5 text-xs bg-slate-900 border border-slate-850 hover:bg-slate-800 text-slate-300 font-semibold rounded-lg transition-all">
+                Previous
+              </a>
+            <% } %>
+            
+            <% for (let i = 1; i <= totalPages; i++) { %>
+              <% if (i === currentPage) { %>
+                <span class="px-3 py-1.5 text-xs bg-brand-600 text-white font-semibold rounded-lg shadow-sm">
+                  <%= i %>
+                </span>
+              <% } else if (i === 1 || i === totalPages || (i >= currentPage - 1 && i <= currentPage + 1)) { %>
+                <a href="/admin/users?page=<%= i %>&search=<%= search %>&sortBy=<%= sortBy %>&sortOrder=<%= sortOrder %>" 
+                   class="px-3 py-1.5 text-xs bg-slate-900 border border-slate-850 hover:bg-slate-800 text-slate-300 font-semibold rounded-lg transition-all">
+                  <%= i %>
+                </a>
+              <% } else if (i === 2 || i === totalPages - 1) { %>
+                <span class="px-2 text-slate-600 text-xs">...</span>
+              <% } %>
+            <% } %>
+
+            <% if (currentPage < totalPages) { %>
+              <a href="/admin/users?page=<%= currentPage + 1 %>&search=<%= search %>&sortBy=<%= sortBy %>&sortOrder=<%= sortOrder %>" 
+                 class="px-3 py-1.5 text-xs bg-slate-900 border border-slate-850 hover:bg-slate-800 text-slate-300 font-semibold rounded-lg transition-all">
+                Next
+              </a>
+            <% } %>
+          </div>
+        </div>
+      <% } %>
+    </div>
+
+  </main>
+</div>
+
+<%- include('partials/footer') %>

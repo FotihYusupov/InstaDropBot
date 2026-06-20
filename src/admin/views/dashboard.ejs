@@ -1,0 +1,336 @@
+<%- include('partials/header') %>
+<%- include('partials/sidebar') %>
+
+<div class="flex-1 flex flex-col overflow-hidden bg-slate-950">
+  <%- include('partials/navbar') %>
+  
+  <!-- Main Content Scroll Container -->
+  <main class="flex-1 overflow-y-auto p-6 md:p-8 space-y-8">
+    
+    <!-- Header Summary Title -->
+    <div class="flex flex-col md:flex-row md:items-center md:justify-between space-y-4 md:space-y-0">
+      <div>
+        <h2 class="text-2xl font-bold text-white tracking-tight">System Performance</h2>
+        <p class="text-sm text-slate-400">General metrics, download queue, and real-time server health checks.</p>
+      </div>
+      <div class="flex items-center space-x-3">
+        <a href="/admin/logs" class="px-4 py-2 text-xs font-semibold text-slate-300 bg-slate-900 border border-slate-800 hover:bg-slate-800 rounded-xl transition-all flex items-center space-x-2">
+          <i class="fa-solid fa-list-check"></i>
+          <span>Check Logs</span>
+        </a>
+      </div>
+    </div>
+
+    <!-- KPIs Metric Grid -->
+    <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
+      
+      <!-- Card: Total Users -->
+      <div class="bg-slate-900 border border-slate-800/80 p-5 rounded-2xl flex flex-col justify-between shadow-lg">
+        <div class="flex items-center justify-between">
+          <span class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Total Users</span>
+          <div class="w-8 h-8 rounded-lg bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-400">
+            <i class="fa-solid fa-users text-sm"></i>
+          </div>
+        </div>
+        <div class="mt-4">
+          <span class="text-2xl font-extrabold text-white"><%= kpis.totalUsers %></span>
+          <p class="text-[10px] text-slate-500 mt-1">Registered bot users</p>
+        </div>
+      </div>
+
+      <!-- Card: Total Downloads -->
+      <div class="bg-slate-900 border border-slate-800/80 p-5 rounded-2xl flex flex-col justify-between shadow-lg">
+        <div class="flex items-center justify-between">
+          <span class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Downloads</span>
+          <div class="w-8 h-8 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400">
+            <i class="fa-solid fa-cloud-arrow-down text-sm"></i>
+          </div>
+        </div>
+        <div class="mt-4">
+          <span class="text-2xl font-extrabold text-white"><%= kpis.totalDownloads %></span>
+          <p class="text-[10px] text-slate-500 mt-1">Processed media items</p>
+        </div>
+      </div>
+
+      <!-- Card: Downloads Today -->
+      <div class="bg-slate-900 border border-slate-800/80 p-5 rounded-2xl flex flex-col justify-between shadow-lg">
+        <div class="flex items-center justify-between">
+          <span class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Today / Week</span>
+          <div class="w-8 h-8 rounded-lg bg-pink-500/10 border border-pink-500/20 flex items-center justify-center text-pink-400">
+            <i class="fa-solid fa-calendar-day text-sm"></i>
+          </div>
+        </div>
+        <div class="mt-4">
+          <span class="text-2xl font-extrabold text-white"><%= kpis.downloadsToday %></span>
+          <span class="text-xs text-slate-400 font-medium ml-1">/ <%= kpis.downloadsThisWeek %> this week</span>
+          <p class="text-[10px] text-slate-500 mt-1">Rolling download counts</p>
+        </div>
+      </div>
+
+      <!-- Card: Queue Size -->
+      <div class="bg-slate-900 border border-slate-800/80 p-5 rounded-2xl flex flex-col justify-between shadow-lg">
+        <div class="flex items-center justify-between">
+          <span class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Queue / Processing</span>
+          <div class="w-8 h-8 rounded-lg bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400">
+            <i class="fa-solid fa-clock text-sm animate-pulse"></i>
+          </div>
+        </div>
+        <div class="mt-4">
+          <div class="flex items-baseline space-x-2">
+            <span class="text-2xl font-extrabold text-white"><%= kpis.queueSize %></span>
+            <span class="text-xs text-slate-400 font-medium">(<%= kpis.avgDownloadProcessingTime %> avg)</span>
+          </div>
+          <p class="text-[10px] text-slate-500 mt-1">Active concurrent downloader threads</p>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Charts Section -->
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      
+      <!-- Chart Card: Downloads & Signups Timeline -->
+      <div class="bg-slate-900 border border-slate-800 p-5 rounded-2xl shadow-lg lg:col-span-2 space-y-4">
+        <div class="flex items-center justify-between">
+          <div>
+            <h3 class="text-sm font-bold text-white uppercase tracking-wider">Activity Timeline</h3>
+            <p class="text-xs text-slate-400">Downloads and registrations over the last 30 days.</p>
+          </div>
+        </div>
+        <div class="h-80 relative">
+          <canvas id="timelineChart"></canvas>
+        </div>
+      </div>
+
+      <!-- Chart Card: Success Ratio -->
+      <div class="bg-slate-900 border border-slate-800 p-5 rounded-2xl shadow-lg flex flex-col justify-between space-y-4">
+        <div>
+          <h3 class="text-sm font-bold text-white uppercase tracking-wider">Success vs Failed</h3>
+          <p class="text-xs text-slate-400">Success and failure rates for all downloaded posts.</p>
+        </div>
+        <div class="h-60 relative flex items-center justify-center">
+          <canvas id="ratioChart"></canvas>
+        </div>
+        <div class="grid grid-cols-2 gap-4 text-center mt-2">
+          <div class="p-2.5 rounded-xl bg-emerald-500/5 border border-emerald-500/10">
+            <span class="text-[10px] font-semibold text-slate-400 block uppercase">Completed</span>
+            <span class="text-sm font-extrabold text-emerald-400 mt-0.5 block"><%= kpis.successfulDownloads %></span>
+          </div>
+          <div class="p-2.5 rounded-xl bg-rose-500/5 border border-rose-500/10">
+            <span class="text-[10px] font-semibold text-slate-400 block uppercase">Failed</span>
+            <span class="text-sm font-extrabold text-rose-400 mt-0.5 block"><%= kpis.failedDownloads %></span>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Server Health Grid & Basic Information -->
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      
+      <!-- Server Resources Monitoring Card -->
+      <div class="bg-slate-900 border border-slate-800 p-6 rounded-2xl shadow-lg lg:col-span-2 space-y-6">
+        <div>
+          <h3 class="text-sm font-bold text-white uppercase tracking-wider">Hardware Performance</h3>
+          <p class="text-xs text-slate-400">Live indicators of processor core, RAM allocation, and hosting disk health.</p>
+        </div>
+
+        <div class="space-y-4">
+          <!-- CPU Progress -->
+          <div>
+            <div class="flex items-center justify-between text-xs font-semibold mb-1">
+              <span class="text-slate-300">Processor Cores (CPU)</span>
+              <span class="text-white"><%= server.cpuUsage %></span>
+            </div>
+            <div class="w-full h-2 rounded-full bg-slate-850 overflow-hidden">
+              <div class="h-full bg-gradient-to-r from-indigo-500 to-brand-500 transition-all duration-500" style="width: <%= server.cpuUsage %>"></div>
+            </div>
+          </div>
+
+          <!-- RAM Progress -->
+          <div>
+            <div class="flex items-center justify-between text-xs font-semibold mb-1">
+              <span class="text-slate-300">System Memory (RAM)</span>
+              <span class="text-slate-400"><%= server.ramFormatted.used %> / <%= server.ramFormatted.total %> (<%= server.ramUsagePercent %>%)</span>
+            </div>
+            <div class="w-full h-2 rounded-full bg-slate-850 overflow-hidden">
+              <div class="h-full bg-gradient-to-r from-emerald-500 to-teal-400 transition-all duration-500" style="width: <%= server.ramUsagePercent %>%"></div>
+            </div>
+          </div>
+
+          <!-- Disk Progress -->
+          <div>
+            <div class="flex items-center justify-between text-xs font-semibold mb-1">
+              <span class="text-slate-300">Storage Disk Usage</span>
+              <span class="text-slate-400"><%= server.disk.used %> used / <%= server.disk.total %> total (<%= server.disk.usagePercent %>%)</span>
+            </div>
+            <div class="w-full h-2 rounded-full bg-slate-850 overflow-hidden">
+              <div class="h-full bg-gradient-to-r from-amber-500 to-rose-400 transition-all duration-500" style="width: <%= server.disk.usagePercent %>%"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Node RSS and heap sizes -->
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-4 pt-4 border-t border-slate-800/60">
+          <div>
+            <span class="text-[10px] text-slate-500 uppercase font-semibold">Node RSS</span>
+            <span class="text-xs font-bold text-white block mt-0.5"><%= server.nodeRss %></span>
+          </div>
+          <div>
+            <span class="text-[10px] text-slate-500 uppercase font-semibold">Heap Used</span>
+            <span class="text-xs font-bold text-white block mt-0.5"><%= server.nodeHeapUsed %></span>
+          </div>
+          <div>
+            <span class="text-[10px] text-slate-500 uppercase font-semibold">Active Users Today</span>
+            <span class="text-xs font-bold text-indigo-400 block mt-0.5"><%= kpis.activeUsersToday %></span>
+          </div>
+          <div>
+            <span class="text-[10px] text-slate-500 uppercase font-semibold">This Month Dl</span>
+            <span class="text-xs font-bold text-emerald-400 block mt-0.5"><%= kpis.downloadsThisMonth %></span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Environment Configuration Details Card -->
+      <div class="bg-slate-900 border border-slate-800 p-6 rounded-2xl shadow-lg flex flex-col justify-between space-y-6">
+        <div>
+          <h3 class="text-sm font-bold text-white uppercase tracking-wider">Infrastructure Spec</h3>
+          <p class="text-xs text-slate-400">Hosting and instance system settings details.</p>
+        </div>
+
+        <div class="space-y-3.5 divide-y divide-slate-800/50">
+          <div class="flex items-center justify-between text-xs pt-1.5 first:pt-0">
+            <span class="text-slate-400">NodeJS Engine</span>
+            <span class="font-mono text-white text-right"><%= server.nodeVersion %></span>
+          </div>
+          <div class="flex items-center justify-between text-xs pt-3">
+            <span class="text-slate-400">MongoDB Database</span>
+            <span class="font-bold text-emerald-400 flex items-center space-x-1.5">
+              <i class="fa-solid fa-circle-check text-[10px]"></i>
+              <span><%= server.mongoStatus %></span>
+            </span>
+          </div>
+          <div class="flex items-center justify-between text-xs pt-3">
+            <span class="text-slate-400">Operating System</span>
+            <span class="text-white text-right truncate max-w-[150px]" title="<%= server.osType %>"><%= server.osType %></span>
+          </div>
+          <div class="flex items-center justify-between text-xs pt-3">
+            <span class="text-slate-400">System Uptime</span>
+            <span class="text-white text-right font-mono"><%= server.systemUptime %></span>
+          </div>
+          <div class="flex items-center justify-between text-xs pt-3">
+            <span class="text-slate-400">Process Uptime</span>
+            <span class="text-white text-right font-mono"><%= server.processUptime %></span>
+          </div>
+        </div>
+
+        <div class="p-3.5 rounded-xl bg-slate-950 border border-slate-800/60 flex items-center space-x-3">
+          <i class="fa-solid fa-circle-nodes text-brand-400 text-lg"></i>
+          <div>
+            <span class="text-[10px] text-slate-500 uppercase font-semibold">Active Workers</span>
+            <p class="text-xs font-bold text-slate-200 mt-0.5">Instance clustering active</p>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+  </main>
+</div>
+
+<!-- Script to initialize charts using Chart.js CDN -->
+<script>
+  document.addEventListener("DOMContentLoaded", function() {
+    const chartData = <%- JSON.stringify(charts) %>;
+
+    // Timeline Chart Setup
+    const labels = chartData.downloads30.map(item => {
+      const parts = item._id.split('-');
+      return `${parts[1]}/${parts[2]}`; // MM/DD
+    });
+    
+    const downloadsCounts = chartData.downloads30.map(item => item.count);
+    const usersCounts = chartData.users30.map(item => item.count);
+
+    const timelineCtx = document.getElementById('timelineChart').getContext('2d');
+    new Chart(timelineCtx, {
+      type: 'line',
+      data: {
+        labels: labels,
+        datasets: [
+          {
+            label: 'Downloads',
+            data: downloadsCounts,
+            borderColor: '#f43f5e',
+            backgroundColor: 'rgba(244, 63, 94, 0.05)',
+            tension: 0.3,
+            fill: true,
+            borderWidth: 2,
+            pointRadius: 2,
+            pointHoverRadius: 4,
+          },
+          {
+            label: 'New Registrations',
+            data: usersCounts,
+            borderColor: '#6366f1',
+            backgroundColor: 'rgba(99, 102, 241, 0.05)',
+            tension: 0.3,
+            fill: true,
+            borderWidth: 2,
+            pointRadius: 2,
+            pointHoverRadius: 4,
+          }
+        ]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: {
+            labels: {
+              color: '#94a3b8',
+              font: { family: 'Inter', size: 11, weight: '500' }
+            }
+          }
+        },
+        scales: {
+          x: {
+            grid: { color: 'rgba(30, 41, 59, 0.3)' },
+            ticks: { color: '#64748b', font: { family: 'Inter', size: 10 } }
+          },
+          y: {
+            grid: { color: 'rgba(30, 41, 59, 0.3)' },
+            ticks: { color: '#64748b', font: { family: 'Inter', size: 10 }, stepSize: 1 }
+          }
+        }
+      }
+    });
+
+    // Ratio Doughnut Chart Setup
+    const ratioCtx = document.getElementById('ratioChart').getContext('2d');
+    new Chart(ratioCtx, {
+      type: 'doughnut',
+      data: {
+        labels: ['Completed', 'Failed'],
+        datasets: [{
+          data: [chartData.pieData.completed, chartData.pieData.failed],
+          backgroundColor: ['#10b981', '#ef4444'],
+          borderColor: '#0f172a',
+          borderWidth: 3,
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        cutout: '75%',
+        plugins: {
+          legend: {
+            display: false
+          }
+        }
+      }
+    });
+  });
+</script>
+
+<%- include('partials/footer') %>

@@ -1,0 +1,222 @@
+<%- include('partials/header') %>
+<%- include('partials/sidebar') %>
+
+<div class="flex-1 flex flex-col overflow-hidden bg-slate-950">
+  <%- include('partials/navbar') %>
+  
+  <main class="flex-1 overflow-y-auto p-6 md:p-8 space-y-6">
+    
+    <!-- Title -->
+    <div>
+      <h2 class="text-2xl font-bold text-white tracking-tight">Advanced Analytics</h2>
+      <p class="text-sm text-slate-400">Hour/day distributions, top downloading users, and target channel trends.</p>
+    </div>
+
+    <!-- Overview Averages Cards -->
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div class="p-5 bg-slate-900 border border-slate-800 rounded-2xl flex items-center justify-between shadow-md">
+        <div>
+          <span class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Average Download File Size</span>
+          <span class="text-2xl font-black text-white block mt-1"><%= stats.avgFileSizeFormatted %></span>
+        </div>
+        <div class="w-10 h-10 rounded-xl bg-brand-500/10 border border-brand-500/20 flex items-center justify-center text-brand-400 text-lg">
+          <i class="fa-solid fa-weight-hanging"></i>
+        </div>
+      </div>
+      <div class="p-5 bg-slate-900 border border-slate-800 rounded-2xl flex items-center justify-between shadow-md">
+        <div>
+          <span class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Average Download Processing Time</span>
+          <span class="text-2xl font-black text-white block mt-1"><%= stats.avgProcessingTimeSeconds %>s</span>
+        </div>
+        <div class="w-10 h-10 rounded-xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-400 text-lg">
+          <i class="fa-solid fa-gauge-high"></i>
+        </div>
+      </div>
+    </div>
+
+    <!-- Hourly & Weekday Chart Grid -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      
+      <!-- Hour of Day distribution -->
+      <div class="bg-slate-900 border border-slate-800 p-5 rounded-2xl shadow-lg space-y-4">
+        <h3 class="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center space-x-2">
+          <i class="fa-solid fa-business-time text-brand-400"></i>
+          <span>Downloads By Hour of Day (Asia/Tashkent)</span>
+        </h3>
+        <div class="h-60 relative">
+          <canvas id="hourChart"></canvas>
+        </div>
+      </div>
+
+      <!-- Weekday distribution -->
+      <div class="bg-slate-900 border border-slate-800 p-5 rounded-2xl shadow-lg space-y-4">
+        <h3 class="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center space-x-2">
+          <i class="fa-solid fa-calendar-week text-indigo-400"></i>
+          <span>Downloads By Weekday</span>
+        </h3>
+        <div class="h-60 relative">
+          <canvas id="weekdayChart"></canvas>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Data Tables Grid -->
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      
+      <!-- Top 20 Users Card -->
+      <div class="bg-slate-900 border border-slate-800 rounded-2xl shadow-lg lg:col-span-2 overflow-hidden flex flex-col">
+        <div class="px-5 py-4 border-b border-slate-800">
+          <h3 class="text-xs font-bold text-white uppercase tracking-wider">Top 20 Power Users</h3>
+        </div>
+        <div class="overflow-x-auto flex-1">
+          <table class="w-full text-left border-collapse text-xs">
+            <thead>
+              <tr class="bg-slate-950 border-b border-slate-800 text-slate-400 text-[10px] font-bold uppercase tracking-wider">
+                <th class="px-5 py-3">Rank & Profile</th>
+                <th class="px-5 py-3">Telegram ID</th>
+                <th class="px-5 py-3 text-center">Completed Downloads</th>
+                <th class="px-5 py-3 text-right">Success Rate</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-800/40">
+              <% if (stats.topUsers.length === 0) { %>
+                <tr>
+                  <td colspan="4" class="px-5 py-8 text-center text-slate-500">No user stats compiled yet.</td>
+                </tr>
+              <% } %>
+              <% stats.topUsers.forEach((userItem, index) => { %>
+                <tr class="hover:bg-slate-850/10">
+                  <td class="px-5 py-3 font-semibold text-slate-200">
+                    <div class="flex items-center space-x-2">
+                      <span class="text-slate-500 font-bold w-4">#<%= index+1 %></span>
+                      <a href="/admin/users/<%= userItem.user.telegramId %>" class="text-indigo-400 hover:underline">
+                        <%= userItem.user.firstName ? `${userItem.user.firstName} ${userItem.user.lastName || ''}` : `@${userItem.user.username}` %>
+                      </a>
+                    </div>
+                  </td>
+                  <td class="px-5 py-3 font-mono text-[10px] text-slate-500"><%= userItem.user.telegramId %></td>
+                  <td class="px-5 py-3 text-center font-bold text-white"><%= userItem.successCount %> / <%= userItem.count %></td>
+                  <td class="px-5 py-3 text-right text-emerald-400 font-bold">
+                    <%= Math.round((userItem.successCount / userItem.count) * 100) %>%
+                  </td>
+                </tr>
+              <% }) %>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Top Instagram Accounts & URLs Sidebar -->
+      <div class="space-y-6 flex flex-col justify-start">
+        
+        <!-- Top Accounts -->
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl shadow-lg overflow-hidden">
+          <div class="px-5 py-4 border-b border-slate-800 bg-slate-950/20">
+            <h3 class="text-xs font-bold text-white uppercase tracking-wider">Top Instagram Channels</h3>
+          </div>
+          <div class="p-2.5 divide-y divide-slate-850 text-xs">
+            <% if (stats.topInstagramAccounts.length === 0) { %>
+              <p class="text-slate-500 text-center py-4">No accounts parsed.</p>
+            <% } %>
+            <% stats.topInstagramAccounts.forEach((acc, i) => { %>
+              <div class="flex items-center justify-between py-2.5 px-2 hover:bg-slate-850/20 rounded-lg">
+                <span class="font-bold text-slate-400">#<%= i+1 %> @<%= acc._id %></span>
+                <span class="font-bold text-rose-400"><%= acc.count %> dls</span>
+              </div>
+            <% }) %>
+          </div>
+        </div>
+
+        <!-- Top URLs -->
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl shadow-lg overflow-hidden">
+          <div class="px-5 py-4 border-b border-slate-800 bg-slate-950/20">
+            <h3 class="text-xs font-bold text-white uppercase tracking-wider font-semibold">Top Reels / Posts</h3>
+          </div>
+          <div class="p-2.5 divide-y divide-slate-850 text-xs">
+            <% if (stats.topUrls.length === 0) { %>
+              <p class="text-slate-500 text-center py-4">No URLs downloaded.</p>
+            <% } %>
+            <% stats.topUrls.forEach((urlItem, i) => { %>
+              <div class="flex flex-col py-2 px-2 hover:bg-slate-850/20 rounded-lg space-y-1">
+                <div class="flex items-center justify-between">
+                  <span class="font-bold text-slate-400 text-[10px]">#<%= i+1 %></span>
+                  <span class="font-bold text-indigo-400"><%= urlItem.count %> requests</span>
+                </div>
+                <a href="<%= urlItem._id %>" target="_blank" class="text-slate-300 truncate hover:underline text-[10px]"><%= urlItem._id %></a>
+              </div>
+            <% }) %>
+          </div>
+        </div>
+
+      </div>
+
+    </div>
+
+  </main>
+</div>
+
+<!-- Render charts configuration script -->
+<script>
+  document.addEventListener("DOMContentLoaded", function() {
+    const statsData = <%- JSON.stringify(stats) %>;
+
+    // Hours Chart setup
+    const hourLabels = statsData.hours.map(h => `${h.hour}:00`);
+    const hourCounts = statsData.hours.map(h => h.count);
+
+    const hourCtx = document.getElementById('hourChart').getContext('2d');
+    new Chart(hourCtx, {
+      type: 'bar',
+      data: {
+        labels: hourLabels,
+        datasets: [{
+          label: 'Downloads by hour',
+          data: hourCounts,
+          backgroundColor: '#f43f5e',
+          borderRadius: 4,
+          borderWidth: 0
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: {
+          x: { grid: { display: false }, ticks: { color: '#64748b', font: { size: 9 } } },
+          y: { grid: { color: 'rgba(30, 41, 59, 0.2)' }, ticks: { color: '#64748b', font: { size: 9 }, stepSize: 1 } }
+        }
+      }
+    });
+
+    // Weekday Chart setup
+    const weekdayLabels = statsData.weekdays.map(w => w.day);
+    const weekdayCounts = statsData.weekdays.map(w => w.count);
+
+    const weekdayCtx = document.getElementById('weekdayChart').getContext('2d');
+    new Chart(weekdayCtx, {
+      type: 'bar',
+      data: {
+        labels: weekdayLabels,
+        datasets: [{
+          label: 'Downloads by day',
+          data: weekdayCounts,
+          backgroundColor: '#6366f1',
+          borderRadius: 4,
+          borderWidth: 0
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: {
+          x: { grid: { display: false }, ticks: { color: '#64748b', font: { size: 10 } } },
+          y: { grid: { color: 'rgba(30, 41, 59, 0.2)' }, ticks: { color: '#64748b', font: { size: 9 }, stepSize: 1 } }
+        }
+      }
+    });
+  });
+</script>
+
+<%- include('partials/footer') %>

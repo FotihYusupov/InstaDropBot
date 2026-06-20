@@ -1,0 +1,213 @@
+<%- include('partials/header') %>
+<%- include('partials/sidebar') %>
+
+<!-- Formatting local helpers -->
+<%
+  function formatBytes(bytes) {
+    if (!bytes || bytes === 0) return '0 Bytes';
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+  }
+%>
+
+<div class="flex-1 flex flex-col overflow-hidden bg-slate-950">
+  <%- include('partials/navbar') %>
+  
+  <main class="flex-1 overflow-y-auto p-6 md:p-8 space-y-6">
+    
+    <!-- Top Back Navigation -->
+    <div class="flex items-center justify-between">
+      <a href="/admin/users" class="inline-flex items-center space-x-2 text-xs font-semibold text-slate-400 hover:text-white transition-colors">
+        <i class="fa-solid fa-arrow-left"></i>
+        <span>Back to Users List</span>
+      </a>
+      <span class="text-xs text-slate-500 font-mono">User ID: <%= user.telegramId %></span>
+    </div>
+
+    <!-- Layout Grid -->
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
+      
+      <!-- Left Column: User Profile & Success rate card -->
+      <div class="space-y-6">
+        
+        <!-- User Profile Card -->
+        <div class="bg-slate-900 border border-slate-800 p-6 rounded-2xl shadow-lg relative overflow-hidden">
+          <div class="absolute top-0 right-0 w-24 h-24 bg-gradient-to-bl from-brand-500/10 to-transparent rounded-bl-full pointer-events-none"></div>
+          
+          <div class="flex items-center space-x-4">
+            <div class="w-12 h-12 rounded-xl bg-brand-500/10 border border-brand-500/20 flex items-center justify-center text-brand-400 font-bold text-xl select-none">
+              <%= (user.firstName || user.username || '?').substring(0,1).toUpperCase() %>
+            </div>
+            <div>
+              <h2 class="text-lg font-bold text-white leading-snug">
+                <%= user.firstName ? `${user.firstName} ${user.lastName || ''}` : 'Unnamed User' %>
+              </h2>
+              <span class="text-xs text-slate-400">
+                <%= user.username ? `@${user.username}` : 'No username' %>
+              </span>
+            </div>
+          </div>
+
+          <div class="mt-6 space-y-3 pt-6 border-t border-slate-850 text-xs">
+            <div class="flex justify-between">
+              <span class="text-slate-500">Telegram ID</span>
+              <span class="font-mono text-slate-200"><%= user.telegramId %></span>
+            </div>
+            <div class="flex justify-between">
+              <span class="text-slate-500">Registered</span>
+              <span class="text-slate-200"><%= new Date(user.createdAt).toLocaleString('ru-RU', { dateStyle: 'medium', timeStyle: 'short' }) %></span>
+            </div>
+            <div class="flex justify-between">
+              <span class="text-slate-500">Last Activity</span>
+              <span class="text-slate-200"><%= user.lastActivityAt ? new Date(user.lastActivityAt).toLocaleString('ru-RU', { dateStyle: 'medium', timeStyle: 'short' }) : 'Never' %></span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Success rate card -->
+        <div class="bg-slate-900 border border-slate-800 p-6 rounded-2xl shadow-lg space-y-4">
+          <h3 class="text-xs font-bold text-slate-400 uppercase tracking-wider">Download Metrics</h3>
+          
+          <div class="flex items-center justify-between">
+            <div class="space-y-1">
+              <span class="text-3xl font-extrabold text-white"><%= stats.successRate %>%</span>
+              <p class="text-[10px] text-slate-500 uppercase tracking-wide">Success Rate</p>
+            </div>
+            
+            <div class="relative w-16 h-16 flex items-center justify-center">
+              <!-- Simplistic SVG Gauge -->
+              <svg class="w-full h-full transform -rotate-90" viewBox="0 0 36 36">
+                <path class="text-slate-800" stroke-width="3" stroke="currentColor" fill="none" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
+                <path class="text-brand-500" stroke-dasharray="<%= stats.successRate %>, 100" stroke-width="3" stroke-linecap="round" stroke="currentColor" fill="none" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
+              </svg>
+              <i class="fa-solid fa-percent absolute text-slate-400 text-xs"></i>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-3 gap-2.5 pt-4 border-t border-slate-850 text-center">
+            <div class="p-2 rounded-xl bg-slate-950">
+              <span class="text-[10px] text-slate-500 uppercase">Total</span>
+              <span class="text-xs font-bold text-white block mt-0.5"><%= stats.total %></span>
+            </div>
+            <div class="p-2 rounded-xl bg-emerald-500/5">
+              <span class="text-[10px] text-emerald-500 uppercase">Success</span>
+              <span class="text-xs font-bold text-emerald-400 block mt-0.5"><%= stats.success %></span>
+            </div>
+            <div class="p-2 rounded-xl bg-rose-500/5">
+              <span class="text-[10px] text-rose-500 uppercase">Failed</span>
+              <span class="text-xs font-bold text-rose-400 block mt-0.5"><%= stats.failed %></span>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Right Column: Stats summaries & Download history list -->
+      <div class="lg:col-span-2 space-y-6">
+        
+        <!-- Top Instagram Accounts Widget -->
+        <div class="bg-slate-900 border border-slate-800 p-6 rounded-2xl shadow-lg space-y-4">
+          <h3 class="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center space-x-2">
+            <i class="fa-brands fa-instagram text-brand-400"></i>
+            <span>Most Downloaded Instagram Accounts</span>
+          </h3>
+
+          <div class="grid grid-cols-1 sm:grid-cols-5 gap-3">
+            <% if (topAccounts.length === 0) { %>
+              <p class="text-xs text-slate-500 py-2 sm:col-span-5">No Instagram account metadata extracted yet.</p>
+            <% } %>
+            <% topAccounts.forEach((acc, i) => { %>
+              <div class="p-3 bg-slate-950 border border-slate-850 rounded-xl flex flex-col justify-between items-center text-center">
+                <span class="text-[10px] font-bold text-slate-500">#<%= i+1 %></span>
+                <span class="text-xs font-bold text-slate-200 mt-1 block truncate w-full" title="@<%= acc._id %>">@<%= acc._id %></span>
+                <span class="text-[10px] text-brand-400 font-semibold bg-brand-500/5 border border-brand-500/10 px-2 py-0.5 rounded-full mt-2">
+                  <%= acc.count %> dl
+                </span>
+              </div>
+            <% }) %>
+          </div>
+        </div>
+
+        <!-- User Download History -->
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl shadow-lg overflow-hidden">
+          <div class="px-6 py-4.5 border-b border-slate-800">
+            <h3 class="text-sm font-bold text-white uppercase tracking-wider">Latest Download Logs</h3>
+            <p class="text-xs text-slate-400">Showing last 50 downloads requested by this user.</p>
+          </div>
+          
+          <div class="overflow-x-auto">
+            <table class="w-full text-left border-collapse">
+              <thead>
+                <tr class="bg-slate-950 border-b border-slate-800 text-slate-400 text-[10px] font-bold uppercase tracking-wider">
+                  <th class="px-6 py-3.5">Instagram URL / Target</th>
+                  <th class="px-6 py-3.5">Status</th>
+                  <th class="px-6 py-3.5">File Size</th>
+                  <th class="px-6 py-3.5">Duration</th>
+                  <th class="px-6 py-3.5 text-right">Date</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-slate-800/50 text-xs">
+                <% if (downloads.length === 0) { %>
+                  <tr>
+                    <td colspan="5" class="px-6 py-12 text-center text-slate-500">
+                      No downloads processed for this user.
+                    </td>
+                  </tr>
+                <% } %>
+                <% downloads.forEach(dl => { %>
+                  <tr class="hover:bg-slate-850/20 transition-all">
+                    <!-- URL -->
+                    <td class="px-6 py-3.5 max-w-[200px] sm:max-w-xs truncate">
+                      <a href="<%= dl.url %>" target="_blank" class="text-indigo-400 hover:underline font-medium block truncate">
+                        <%= dl.url %>
+                      </a>
+                      <% if (dl.instagramAccount) { %>
+                        <span class="text-[10px] font-semibold text-slate-500 mt-0.5 block flex items-center space-x-1">
+                          <i class="fa-brands fa-instagram text-[10px]"></i>
+                          <span>@<%= dl.instagramAccount %></span>
+                        </span>
+                      <% } %>
+                    </td>
+
+                    <!-- Status -->
+                    <td class="px-6 py-3.5">
+                      <% if (dl.status === 'COMPLETED') { %>
+                        <span class="px-2 py-0.5 text-[10px] font-bold text-emerald-400 bg-emerald-500/5 border border-emerald-500/20 rounded-md">SUCCESS</span>
+                      <% } else if (dl.status === 'FAILED') { %>
+                        <span class="px-2 py-0.5 text-[10px] font-bold text-rose-400 bg-rose-500/5 border border-rose-500/20 rounded-md cursor-help" title="<%= dl.errorMessage || 'Unknown download error' %>">FAILED</span>
+                      <% } else { %>
+                        <span class="px-2 py-0.5 text-[10px] font-bold text-amber-400 bg-amber-500/5 border border-amber-500/20 rounded-md">PENDING</span>
+                      <% } %>
+                    </td>
+
+                    <!-- Size -->
+                    <td class="px-6 py-3.5 text-slate-300">
+                      <%= dl.fileSize ? formatBytes(dl.fileSize) : '—' %>
+                    </td>
+
+                    <!-- Duration -->
+                    <td class="px-6 py-3.5 text-slate-400">
+                      <%= dl.duration ? `${Math.round(dl.duration / 100) / 10}s` : '—' %>
+                    </td>
+
+                    <!-- Date -->
+                    <td class="px-6 py-3.5 text-slate-400 text-right">
+                      <%= new Date(dl.createdAt).toLocaleString('ru-RU', { dateStyle: 'short', timeStyle: 'short' }) %>
+                    </td>
+                  </tr>
+                <% }) %>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+      </div>
+
+    </div>
+
+  </main>
+</div>
+
+<%- include('partials/footer') %>

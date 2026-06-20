@@ -1,0 +1,224 @@
+<%- include('partials/header') %>
+<%- include('partials/sidebar') %>
+
+<%
+  function formatBytes(bytes) {
+    if (!bytes || bytes === 0) return '0 Bytes';
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+  }
+%>
+
+<div class="flex-1 flex flex-col overflow-hidden bg-slate-950">
+  <%- include('partials/navbar') %>
+  
+  <main class="flex-1 overflow-y-auto p-6 md:p-8 space-y-6">
+    
+    <!-- Title Section -->
+    <div>
+      <h2 class="text-2xl font-bold text-white tracking-tight">Download History</h2>
+      <p class="text-sm text-slate-400">Total downloads recorded: <span class="font-bold text-white"><%= totalCount %></span></p>
+    </div>
+
+    <!-- Search and Filters Form -->
+    <div class="bg-slate-900 border border-slate-800 p-5 rounded-2xl shadow-lg">
+      <form action="/admin/downloads" method="GET" class="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
+        
+        <!-- Search query -->
+        <div class="md:col-span-2 space-y-1.5">
+          <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider">Search Query</label>
+          <div class="relative">
+            <span class="absolute inset-y-0 left-0 pl-3 flex items-center text-slate-500">
+              <i class="fa-solid fa-magnifying-glass text-xs"></i>
+            </span>
+            <input type="text" 
+                   name="search" 
+                   value="<%= search %>" 
+                   placeholder="Search URL, account, username, telegram ID..." 
+                   class="w-full pl-9 pr-3 py-2 text-xs rounded-xl bg-slate-950 border border-slate-800 text-slate-100 focus:outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 transition-all">
+          </div>
+        </div>
+
+        <!-- Status Filter -->
+        <div class="space-y-1.5">
+          <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider">Status</label>
+          <select name="status" 
+                  class="w-full bg-slate-950 border border-slate-800 text-slate-300 rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-brand-500">
+            <option value="">All Statuses</option>
+            <option value="COMPLETED" <%= status === 'COMPLETED' ? 'selected' : '' %>>COMPLETED</option>
+            <option value="FAILED" <%= status === 'FAILED' ? 'selected' : '' %>>FAILED</option>
+            <option value="PENDING" <%= status === 'PENDING' ? 'selected' : '' %>>PENDING</option>
+          </select>
+        </div>
+
+        <!-- Start Date Filter -->
+        <div class="space-y-1.5">
+          <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider">Start Date</label>
+          <input type="date" 
+                 name="startDate" 
+                 value="<%= startDate %>" 
+                 class="w-full bg-slate-950 border border-slate-800 text-slate-300 rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-brand-500">
+        </div>
+
+        <!-- End Date Filter -->
+        <div class="space-y-1.5">
+          <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider">End Date</label>
+          <input type="date" 
+                 name="endDate" 
+                 value="<%= endDate %>" 
+                 class="w-full bg-slate-950 border border-slate-800 text-slate-300 rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-brand-500">
+        </div>
+
+        <!-- Submit and Clear buttons -->
+        <div class="flex items-center space-x-2 md:col-span-3">
+          <button type="submit" 
+                  class="px-5 py-2.5 bg-brand-600 hover:bg-brand-500 text-white rounded-xl text-xs font-semibold shadow transition-all">
+            Apply Filters
+          </button>
+          
+          <% if (search || status || startDate || endDate) { %>
+            <a href="/admin/downloads" class="px-5 py-2.5 border border-slate-800 hover:bg-slate-800 text-slate-400 hover:text-white rounded-xl text-xs font-semibold transition-all text-center">
+              Clear Filters
+            </a>
+          <% } %>
+        </div>
+
+      </form>
+    </div>
+
+    <!-- Downloads Table -->
+    <div class="bg-slate-900 border border-slate-800 rounded-2xl shadow-lg overflow-hidden">
+      <div class="overflow-x-auto">
+        <table class="w-full text-left border-collapse">
+          <thead>
+            <tr class="bg-slate-950 border-b border-slate-800 text-slate-400 text-[10px] font-bold uppercase tracking-wider">
+              <th class="px-6 py-4">Download ID</th>
+              <th class="px-6 py-4">User</th>
+              <th class="px-6 py-4">Instagram URL</th>
+              <th class="px-6 py-4">Status</th>
+              <th class="px-6 py-4">File Size</th>
+              <th class="px-6 py-4">Duration</th>
+              <th class="px-6 py-4 text-right">Created Date</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-slate-800/50 text-xs">
+            <% if (downloads.length === 0) { %>
+              <tr>
+                <td colspan="7" class="px-6 py-12 text-center text-slate-500">
+                  <div class="flex flex-col items-center justify-center space-y-3">
+                    <i class="fa-solid fa-cloud-arrow-down text-3xl text-slate-700"></i>
+                    <p class="text-sm font-semibold">No downloads found</p>
+                    <p class="text-xs">Adjust your search parameters and filters.</p>
+                  </div>
+                </td>
+              </tr>
+            <% } %>
+            <% downloads.forEach(dl => { %>
+              <tr class="hover:bg-slate-855/20 transition-all">
+                <!-- ID -->
+                <td class="px-6 py-4 font-mono text-[10px] text-slate-500">
+                  <%= dl._id %>
+                </td>
+
+                <!-- User Details -->
+                <td class="px-6 py-4">
+                  <% if (dl.userId) { %>
+                    <a href="/admin/users/<%= dl.userId.telegramId %>" class="hover:underline font-semibold text-slate-200 block">
+                      <%= dl.userId.firstName ? `${dl.userId.firstName} ${dl.userId.lastName || ''}` : `@${dl.userId.username}` %>
+                    </a>
+                    <span class="text-[10px] font-mono text-slate-500"><%= dl.userId.telegramId %></span>
+                  <% } else { %>
+                    <span class="text-slate-600 italic">Unknown user</span>
+                  <% } %>
+                </td>
+
+                <!-- URL & Instagram account metadata -->
+                <td class="px-6 py-4 max-w-[200px] truncate">
+                  <a href="<%= dl.url %>" target="_blank" class="text-indigo-400 hover:underline font-medium block truncate" title="<%= dl.url %>">
+                    <%= dl.url %>
+                  </a>
+                  <% if (dl.instagramAccount) { %>
+                    <span class="text-[10px] font-bold text-slate-500 mt-0.5 block flex items-center space-x-1">
+                      <i class="fa-brands fa-instagram text-[10px]"></i>
+                      <span>@<%= dl.instagramAccount %></span>
+                    </span>
+                  <% } %>
+                </td>
+
+                <!-- Status -->
+                <td class="px-6 py-4">
+                  <% if (dl.status === 'COMPLETED') { %>
+                    <span class="px-2 py-0.5 text-[9px] font-bold text-emerald-400 bg-emerald-500/5 border border-emerald-500/20 rounded-md">SUCCESS</span>
+                  <% } else if (dl.status === 'FAILED') { %>
+                    <span class="px-2 py-0.5 text-[9px] font-bold text-rose-400 bg-rose-500/5 border border-rose-500/20 rounded-md cursor-help" title="<%= dl.errorMessage || 'Download error' %>">FAILED</span>
+                  <% } else { %>
+                    <span class="px-2 py-0.5 text-[9px] font-bold text-amber-400 bg-amber-500/5 border border-amber-500/20 rounded-md">PENDING</span>
+                  <% } %>
+                </td>
+
+                <!-- File Size -->
+                <td class="px-6 py-4 text-slate-300">
+                  <%= dl.fileSize ? formatBytes(dl.fileSize) : '—' %>
+                </td>
+
+                <!-- Download duration -->
+                <td class="px-6 py-4 text-slate-400">
+                  <%= dl.duration ? `${Math.round(dl.duration / 100) / 10}s` : '—' %>
+                </td>
+
+                <!-- Created Date -->
+                <td class="px-6 py-4 text-slate-400 text-right">
+                  <%= new Date(dl.createdAt).toLocaleString('ru-RU', { dateStyle: 'short', timeStyle: 'short' }) %>
+                </td>
+              </tr>
+            <% }) %>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Pagination footer -->
+      <% if (totalPages > 1) { %>
+        <div class="bg-slate-950 border-t border-slate-800/80 px-6 py-4 flex items-center justify-between">
+          <span class="text-xs text-slate-500">
+            Page <span class="font-bold text-slate-300"><%= currentPage %></span> of <span class="font-bold text-slate-300"><%= totalPages %></span>
+          </span>
+          <div class="flex space-x-1">
+            <% if (currentPage > 1) { %>
+              <a href="/admin/downloads?page=<%= currentPage - 1 %>&search=<%= search %>&status=<%= status %>&startDate=<%= startDate %>&endDate=<%= endDate %>" 
+                 class="px-3 py-1.5 text-xs bg-slate-900 border border-slate-850 hover:bg-slate-800 text-slate-300 font-semibold rounded-lg transition-all">
+                Previous
+              </a>
+            <% } %>
+            
+            <% for (let i = 1; i <= totalPages; i++) { %>
+              <% if (i === currentPage) { %>
+                <span class="px-3 py-1.5 text-xs bg-brand-600 text-white font-semibold rounded-lg shadow-sm">
+                  <%= i %>
+                </span>
+              <% } else if (i === 1 || i === totalPages || (i >= currentPage - 1 && i <= currentPage + 1)) { %>
+                <a href="/admin/downloads?page=<%= i %>&search=<%= search %>&status=<%= status %>&startDate=<%= startDate %>&endDate=<%= endDate %>" 
+                   class="px-3 py-1.5 text-xs bg-slate-900 border border-slate-850 hover:bg-slate-800 text-slate-300 font-semibold rounded-lg transition-all">
+                  <%= i %>
+                </a>
+              <% } else if (i === 2 || i === totalPages - 1) { %>
+                <span class="px-2 text-slate-600 text-xs">...</span>
+              <% } %>
+            <% } %>
+
+            <% if (currentPage < totalPages) { %>
+              <a href="/admin/downloads?page=<%= currentPage + 1 %>&search=<%= search %>&status=<%= status %>&startDate=<%= startDate %>&endDate=<%= endDate %>" 
+                 class="px-3 py-1.5 text-xs bg-slate-900 border border-slate-850 hover:bg-slate-800 text-slate-300 font-semibold rounded-lg transition-all">
+                Next
+              </a>
+            <% } %>
+          </div>
+        </div>
+      <% } %>
+    </div>
+
+  </main>
+</div>
+
+<%- include('partials/footer') %>

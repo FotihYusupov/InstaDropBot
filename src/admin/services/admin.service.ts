@@ -3,8 +3,12 @@ import { InjectModel } from '@nestjs/mongoose';
 import { InjectConnection } from '@nestjs/mongoose';
 import { Model, Connection, Types } from 'mongoose';
 import { User, UserDocument } from '../../users/schemas/user.schema';
-import { Download, DownloadDocument } from '../../users/schemas/download.schema';
+import {
+  Download,
+  DownloadDocument,
+} from '../../users/schemas/download.schema';
 import { DownloadQueueService } from '../../download/download-queue.service';
+import { BotService } from '../../bot/bot.service';
 import * as os from 'os';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -15,10 +19,23 @@ export class AdminService {
   private readonly logger = new Logger(AdminService.name);
   private lastCpuTicks = { idle: 0, total: 0 };
 
+  private broadcastStatus = {
+    active: false,
+    totalUsers: 0,
+    processedUsers: 0,
+    successCount: 0,
+    failedCount: 0,
+    startedAt: null as Date | null,
+    finishedAt: null as Date | null,
+    message: '',
+    parseMode: 'none' as 'Markdown' | 'HTML' | 'none',
+  };
+
   constructor(
     @InjectModel(User.name) private userModel: Model<UserDocument>,
     @InjectModel(Download.name) private downloadModel: Model<DownloadDocument>,
     private downloadQueueService: DownloadQueueService,
+    private botService: BotService,
     @InjectConnection() private readonly connection: Connection,
   ) {
     this.getCpuUsagePercent(); // Warm up ticks
@@ -55,16 +72,29 @@ export class AdminService {
       this.userModel.countDocuments().exec(),
       this.downloadModel.countDocuments().exec(),
       this.downloadModel.countDocuments({ createdAt: { $gte: today } }).exec(),
-      this.downloadModel.countDocuments({ createdAt: { $gte: startOfWeek } }).exec(),
-      this.downloadModel.countDocuments({ createdAt: { $gte: startOfMonth } }).exec(),
+      this.downloadModel
+        .countDocuments({ createdAt: { $gte: startOfWeek } })
+        .exec(),
+      this.downloadModel
+        .countDocuments({ createdAt: { $gte: startOfMonth } })
+        .exec(),
       this.downloadModel.countDocuments({ status: 'COMPLETED' }).exec(),
       this.downloadModel.countDocuments({ status: 'FAILED' }).exec(),
       this.userModel.countDocuments({ lastActivityAt: { $gte: today } }).exec(),
-      this.userModel.countDocuments({ lastActivityAt: { $gte: startOfWeek } }).exec(),
-      this.downloadModel.aggregate([
-        { $match: { status: 'COMPLETED', duration: { $exists: true, $ne: null } } },
-        { $group: { _id: null, avg: { $avg: '$duration' } } },
-      ]).exec(),
+      this.userModel
+        .countDocuments({ lastActivityAt: { $gte: startOfWeek } })
+        .exec(),
+      this.downloadModel
+        .aggregate([
+          {
+            $match: {
+              status: 'COMPLETED',
+              duration: { $exists: true, $ne: null },
+            },
+          },
+          { $group: { _id: null, avg: { $avg: '$duration' } } },
+        ])
+        .exec(),
     ]);
 
     const queueSize = this.downloadQueueService.getQueueSize();
@@ -88,7 +118,11 @@ export class AdminService {
 
   async getDashboardCharts() {
     const { downloadsTrend, usersTrend } = await this.getDailyTrends(30);
-    const downloads30 = this.fillMissingDates(downloadsTrend, 30, { count: 0, completed: 0, failed: 0 });
+    const downloads30 = this.fillMissingDates(downloadsTrend, 30, {
+      count: 0,
+      completed: 0,
+      failed: 0,
+    });
     const users30 = this.fillMissingDates(usersTrend, 30, { count: 0 });
 
     const [completedTotal, failedTotal] = await Promise.all([
@@ -111,29 +145,35 @@ export class AdminService {
     startDate.setDate(startDate.getDate() - days + 1);
     startDate.setHours(0, 0, 0, 0);
 
-    const downloadsTrend = await this.downloadModel.aggregate([
-      { $match: { createdAt: { $gte: startDate } } },
-      {
-        $group: {
-          _id: { $dateToString: { format: '%Y-%m-%d', date: '$createdAt' } },
-          count: { $sum: 1 },
-          completed: { $sum: { $cond: [{ $eq: ['$status', 'COMPLETED'] }, 1, 0] } },
-          failed: { $sum: { $cond: [{ $eq: ['$status', 'FAILED'] }, 1, 0] } },
+    const downloadsTrend = await this.downloadModel
+      .aggregate([
+        { $match: { createdAt: { $gte: startDate } } },
+        {
+          $group: {
+            _id: { $dateToString: { format: '%Y-%m-%d', date: '$createdAt' } },
+            count: { $sum: 1 },
+            completed: {
+              $sum: { $cond: [{ $eq: ['$status', 'COMPLETED'] }, 1, 0] },
+            },
+            failed: { $sum: { $cond: [{ $eq: ['$status', 'FAILED'] }, 1, 0] } },
+          },
         },
-      },
-      { $sort: { _id: 1 } },
-    ]).exec();
+        { $sort: { _id: 1 } },
+      ])
+      .exec();
 
-    const usersTrend = await this.userModel.aggregate([
-      { $match: { createdAt: { $gte: startDate } } },
-      {
-        $group: {
-          _id: { $dateToString: { format: '%Y-%m-%d', date: '$createdAt' } },
-          count: { $sum: 1 },
+    const usersTrend = await this.userModel
+      .aggregate([
+        { $match: { createdAt: { $gte: startDate } } },
+        {
+          $group: {
+            _id: { $dateToString: { format: '%Y-%m-%d', date: '$createdAt' } },
+            count: { $sum: 1 },
+          },
         },
-      },
-      { $sort: { _id: 1 } },
-    ]).exec();
+        { $sort: { _id: 1 } },
+      ])
+      .exec();
 
     return { downloadsTrend, usersTrend };
   }
@@ -160,7 +200,13 @@ export class AdminService {
   // USERS PAGE LOGIC
   // ==========================================
 
-  async getUsers(page: number, limit: number, search?: string, sortBy = 'createdAt', sortOrder: 'asc' | 'desc' = 'desc') {
+  async getUsers(
+    page: number,
+    limit: number,
+    search?: string,
+    sortBy = 'createdAt',
+    sortOrder: 'asc' | 'desc' = 'desc',
+  ) {
     const skip = (page - 1) * limit;
     const matchStage: any = {};
 
@@ -254,29 +300,48 @@ export class AdminService {
         .limit(50)
         .exec(),
       // Top 5 most downloaded accounts
-      this.downloadModel.aggregate([
-        { $match: { userId: user._id, instagramAccount: { $exists: true, $ne: null } } },
-        { $group: { _id: '$instagramAccount', count: { $sum: 1 } } },
-        { $sort: { count: -1 } },
-        { $limit: 5 },
-      ]).exec(),
-      // Download aggregates
-      this.downloadModel.aggregate([
-        { $match: { userId: user._id } },
-        {
-          $group: {
-            _id: null,
-            total: { $sum: 1 },
-            success: { $sum: { $cond: [{ $eq: ['$status', 'COMPLETED'] }, 1, 0] } },
-            failed: { $sum: { $cond: [{ $eq: ['$status', 'FAILED'] }, 1, 0] } },
-            avgDuration: { $avg: '$duration' },
+      this.downloadModel
+        .aggregate([
+          {
+            $match: {
+              userId: user._id,
+              instagramAccount: { $exists: true, $ne: null },
+            },
           },
-        },
-      ]).exec(),
+          { $group: { _id: '$instagramAccount', count: { $sum: 1 } } },
+          { $sort: { count: -1 } },
+          { $limit: 5 },
+        ])
+        .exec(),
+      // Download aggregates
+      this.downloadModel
+        .aggregate([
+          { $match: { userId: user._id } },
+          {
+            $group: {
+              _id: null,
+              total: { $sum: 1 },
+              success: {
+                $sum: { $cond: [{ $eq: ['$status', 'COMPLETED'] }, 1, 0] },
+              },
+              failed: {
+                $sum: { $cond: [{ $eq: ['$status', 'FAILED'] }, 1, 0] },
+              },
+              avgDuration: { $avg: '$duration' },
+            },
+          },
+        ])
+        .exec(),
     ]);
 
-    const stats = statsResult[0] || { total: 0, success: 0, failed: 0, avgDuration: 0 };
-    const successRate = stats.total > 0 ? Math.round((stats.success / stats.total) * 100) : 0;
+    const stats = statsResult[0] || {
+      total: 0,
+      success: 0,
+      failed: 0,
+      avgDuration: 0,
+    };
+    const successRate =
+      stats.total > 0 ? Math.round((stats.success / stats.total) * 100) : 0;
 
     return {
       user,
@@ -287,7 +352,9 @@ export class AdminService {
         success: stats.success,
         failed: stats.failed,
         successRate,
-        avgDurationSeconds: stats.avgDuration ? Math.round(stats.avgDuration / 100) / 10 : 0,
+        avgDurationSeconds: stats.avgDuration
+          ? Math.round(stats.avgDuration / 100) / 10
+          : 0,
       },
     };
   }
@@ -296,7 +363,14 @@ export class AdminService {
   // DOWNLOADS PAGE LOGIC
   // ==========================================
 
-  async getDownloads(page: number, limit: number, search?: string, status?: string, startDate?: string, endDate?: string) {
+  async getDownloads(
+    page: number,
+    limit: number,
+    search?: string,
+    status?: string,
+    startDate?: string,
+    endDate?: string,
+  ) {
     const skip = (page - 1) * limit;
     const query: any = {};
 
@@ -320,14 +394,17 @@ export class AdminService {
     let userMatchIds: Types.ObjectId[] = [];
     if (search) {
       // Find matching users first
-      const users = await this.userModel.find({
-        $or: [
-          { telegramId: { $regex: search, $options: 'i' } },
-          { username: { $regex: search, $options: 'i' } },
-          { firstName: { $regex: search, $options: 'i' } },
-          { lastName: { $regex: search, $options: 'i' } },
-        ],
-      }).select('_id').exec();
+      const users = await this.userModel
+        .find({
+          $or: [
+            { telegramId: { $regex: search, $options: 'i' } },
+            { username: { $regex: search, $options: 'i' } },
+            { firstName: { $regex: search, $options: 'i' } },
+            { lastName: { $regex: search, $options: 'i' } },
+          ],
+        })
+        .select('_id')
+        .exec();
 
       userMatchIds = users.map((u) => u._id as Types.ObjectId);
 
@@ -375,56 +452,99 @@ export class AdminService {
       downloadsByWeekdayTrend,
     ] = await Promise.all([
       // Top 20 users
-      this.downloadModel.aggregate([
-        { $group: { _id: '$userId', count: { $sum: 1 }, successCount: { $sum: { $cond: [{ $eq: ['$status', 'COMPLETED'] }, 1, 0] } } } },
-        { $sort: { count: -1 } },
-        { $limit: 20 },
-        { $lookup: { from: 'users', localField: '_id', foreignField: '_id', as: 'user' } },
-        { $unwind: '$user' },
-      ]).exec(),
+      this.downloadModel
+        .aggregate([
+          {
+            $group: {
+              _id: '$userId',
+              count: { $sum: 1 },
+              successCount: {
+                $sum: { $cond: [{ $eq: ['$status', 'COMPLETED'] }, 1, 0] },
+              },
+            },
+          },
+          { $sort: { count: -1 } },
+          { $limit: 20 },
+          {
+            $lookup: {
+              from: 'users',
+              localField: '_id',
+              foreignField: '_id',
+              as: 'user',
+            },
+          },
+          { $unwind: '$user' },
+        ])
+        .exec(),
       // Top downloaded Instagram accounts
-      this.downloadModel.aggregate([
-        { $match: { instagramAccount: { $exists: true, $ne: null } } },
-        { $group: { _id: '$instagramAccount', count: { $sum: 1 } } },
-        { $sort: { count: -1 } },
-        { $limit: 20 },
-      ]).exec(),
+      this.downloadModel
+        .aggregate([
+          { $match: { instagramAccount: { $exists: true, $ne: null } } },
+          { $group: { _id: '$instagramAccount', count: { $sum: 1 } } },
+          { $sort: { count: -1 } },
+          { $limit: 20 },
+        ])
+        .exec(),
       // Top downloaded URLs
-      this.downloadModel.aggregate([
-        { $group: { _id: '$url', count: { $sum: 1 } } },
-        { $sort: { count: -1 } },
-        { $limit: 20 },
-      ]).exec(),
+      this.downloadModel
+        .aggregate([
+          { $group: { _id: '$url', count: { $sum: 1 } } },
+          { $sort: { count: -1 } },
+          { $limit: 20 },
+        ])
+        .exec(),
       // Average file size (completed)
-      this.downloadModel.aggregate([
-        { $match: { status: 'COMPLETED', fileSize: { $exists: true, $ne: null } } },
-        { $group: { _id: null, avgSize: { $avg: '$fileSize' } } },
-      ]).exec(),
+      this.downloadModel
+        .aggregate([
+          {
+            $match: {
+              status: 'COMPLETED',
+              fileSize: { $exists: true, $ne: null },
+            },
+          },
+          { $group: { _id: null, avgSize: { $avg: '$fileSize' } } },
+        ])
+        .exec(),
       // Average duration (completed)
-      this.downloadModel.aggregate([
-        { $match: { status: 'COMPLETED', duration: { $exists: true, $ne: null } } },
-        { $group: { _id: null, avgDuration: { $avg: '$duration' } } },
-      ]).exec(),
+      this.downloadModel
+        .aggregate([
+          {
+            $match: {
+              status: 'COMPLETED',
+              duration: { $exists: true, $ne: null },
+            },
+          },
+          { $group: { _id: null, avgDuration: { $avg: '$duration' } } },
+        ])
+        .exec(),
       // Downloads by hour (distribution 0-23)
-      this.downloadModel.aggregate([
-        {
-          $project: {
-            hour: { $hour: { date: '$createdAt', timezone: 'Asia/Tashkent' } }, // Use local timezone if preferred
+      this.downloadModel
+        .aggregate([
+          {
+            $project: {
+              hour: {
+                $hour: { date: '$createdAt', timezone: 'Asia/Tashkent' },
+              }, // Use local timezone if preferred
+            },
           },
-        },
-        { $group: { _id: '$hour', count: { $sum: 1 } } },
-        { $sort: { _id: 1 } },
-      ]).exec(),
+          { $group: { _id: '$hour', count: { $sum: 1 } } },
+          { $sort: { _id: 1 } },
+        ])
+        .exec(),
       // Downloads by weekday (distribution 1-7, 1=Sunday)
-      this.downloadModel.aggregate([
-        {
-          $project: {
-            day: { $dayOfWeek: { date: '$createdAt', timezone: 'Asia/Tashkent' } },
+      this.downloadModel
+        .aggregate([
+          {
+            $project: {
+              day: {
+                $dayOfWeek: { date: '$createdAt', timezone: 'Asia/Tashkent' },
+              },
+            },
           },
-        },
-        { $group: { _id: '$day', count: { $sum: 1 } } },
-        { $sort: { _id: 1 } },
-      ]).exec(),
+          { $group: { _id: '$day', count: { $sum: 1 } } },
+          { $sort: { _id: 1 } },
+        ])
+        .exec(),
     ]);
 
     const avgFileSize = avgFileSizeResult[0]?.avgSize || 0;
@@ -436,7 +556,15 @@ export class AdminService {
       return { hour: i, count: match ? match.count : 0 };
     });
 
-    const weekdaysNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+    const weekdaysNames = [
+      'Sunday',
+      'Monday',
+      'Tuesday',
+      'Wednesday',
+      'Thursday',
+      'Friday',
+      'Saturday',
+    ];
     const weekdays = Array.from({ length: 7 }, (_, i) => {
       const match = downloadsByWeekdayTrend.find((w) => w._id === i + 1);
       return { day: weekdaysNames[i], count: match ? match.count : 0 };
@@ -476,7 +604,12 @@ export class AdminService {
     const cpuUsagePercent = this.getCpuUsagePercent();
 
     // Disk usage (Node 18.15.0+)
-    let diskStats = { total: '0 GB', free: '0 GB', used: '0 GB', usagePercent: 0 };
+    let diskStats = {
+      total: '0 GB',
+      free: '0 GB',
+      used: '0 GB',
+      usagePercent: 0,
+    };
     try {
       const disk = await fs.promises.statfs('.');
       const totalDisk = disk.blocks * disk.bsize;
@@ -507,7 +640,8 @@ export class AdminService {
       systemUptime: this.formatUptime(uptimeSeconds),
       processUptime: this.formatUptime(processUptimeSeconds),
       nodeVersion: process.version,
-      mongoStatus: this.connection.readyState === 1 ? 'CONNECTED' : 'DISCONNECTED',
+      mongoStatus:
+        this.connection.readyState === 1 ? 'CONNECTED' : 'DISCONNECTED',
       osType: `${os.type()} ${os.arch()}`,
     };
   }
@@ -578,7 +712,11 @@ export class AdminService {
       try {
         const parsed = JSON.parse(line);
         // Filter by Level
-        if (level && level.toLowerCase() !== 'all' && parsed.level !== level.toLowerCase()) {
+        if (
+          level &&
+          level.toLowerCase() !== 'all' &&
+          parsed.level !== level.toLowerCase()
+        ) {
           continue;
         }
         // Filter by Search Query
@@ -613,5 +751,74 @@ export class AdminService {
 
   getCombinedLogPath(): string {
     return path.resolve('logs/combined.log');
+  }
+
+  getBroadcastStatus() {
+    return this.broadcastStatus;
+  }
+
+  async startBroadcast(
+    message: string,
+    parseMode: 'Markdown' | 'HTML' | 'none',
+  ): Promise<void> {
+    if (this.broadcastStatus.active) {
+      throw new Error('A broadcast is already in progress.');
+    }
+
+    this.broadcastStatus = {
+      active: true,
+      totalUsers: 0,
+      processedUsers: 0,
+      successCount: 0,
+      failedCount: 0,
+      startedAt: new Date(),
+      finishedAt: null,
+      message,
+      parseMode,
+    };
+
+    // Run in background asynchronously
+    this.runBroadcastInBackground(message, parseMode).catch((err) => {
+      this.logger.error('Error in background broadcast:', err);
+      this.broadcastStatus.active = false;
+      this.broadcastStatus.finishedAt = new Date();
+    });
+  }
+
+  private async runBroadcastInBackground(
+    message: string,
+    parseMode: 'Markdown' | 'HTML' | 'none',
+  ): Promise<void> {
+    const users = await this.userModel.find({}, 'telegramId').exec();
+    this.broadcastStatus.totalUsers = users.length;
+
+    const mode = parseMode === 'none' ? undefined : parseMode;
+
+    for (const user of users) {
+      if (!this.broadcastStatus.active) {
+        break;
+      }
+
+      try {
+        await this.botService.sendMessage(user.telegramId, message, mode);
+        this.broadcastStatus.successCount++;
+      } catch (err: any) {
+        this.logger.warn(
+          `Failed to send broadcast message to ${user.telegramId}: ${err.message}`,
+        );
+        this.broadcastStatus.failedCount++;
+      }
+
+      this.broadcastStatus.processedUsers++;
+
+      // Wait 35ms between messages to stay safe within Telegram's limit (30 messages/sec)
+      await new Promise((resolve) => setTimeout(resolve, 35));
+    }
+
+    this.broadcastStatus.active = false;
+    this.broadcastStatus.finishedAt = new Date();
+    this.logger.log(
+      `Broadcast completed. Success: ${this.broadcastStatus.successCount}, Failed: ${this.broadcastStatus.failedCount}, Total: ${this.broadcastStatus.totalUsers}`,
+    );
   }
 }

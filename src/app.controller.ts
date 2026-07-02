@@ -9,7 +9,7 @@ export class AppController {
   @Get('health')
   getHealth() {
     const isDbConnected = this.connection.readyState === 1;
-    
+
     if (!isDbConnected) {
       throw new HttpException(
         {

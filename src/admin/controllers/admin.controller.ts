@@ -1,4 +1,14 @@
-import { Controller, Get, Post, Body, Req, Res, UseGuards, Query, Param } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Body,
+  Req,
+  Res,
+  UseGuards,
+  Query,
+  Param,
+} from '@nestjs/common';
 import * as express from 'express';
 import { AdminService } from '../services/admin.service';
 import { AdminGuard } from '../guards/admin.guard';
@@ -94,7 +104,13 @@ export class AdminController {
     try {
       const limit = 10;
       const pageNum = Math.max(1, Number(page));
-      const result = await this.adminService.getUsers(pageNum, limit, search, sortBy, sortOrder);
+      const result = await this.adminService.getUsers(
+        pageNum,
+        limit,
+        search,
+        sortBy,
+        sortOrder,
+      );
 
       return res.render('users', {
         ...result,
@@ -125,7 +141,9 @@ export class AdminController {
         activePage: 'users',
       });
     } catch (error) {
-      return res.status(500).send(`Failed to load user details: ${error.message}`);
+      return res
+        .status(500)
+        .send(`Failed to load user details: ${error.message}`);
     }
   }
 
@@ -142,7 +160,14 @@ export class AdminController {
     try {
       const limit = 15;
       const pageNum = Math.max(1, Number(page));
-      const result = await this.adminService.getDownloads(pageNum, limit, search, status, startDate, endDate);
+      const result = await this.adminService.getDownloads(
+        pageNum,
+        limit,
+        search,
+        status,
+        startDate,
+        endDate,
+      );
 
       return res.render('downloads', {
         ...result,
@@ -153,7 +178,9 @@ export class AdminController {
         activePage: 'downloads',
       });
     } catch (error) {
-      return res.status(500).send(`Failed to load downloads list: ${error.message}`);
+      return res
+        .status(500)
+        .send(`Failed to load downloads list: ${error.message}`);
     }
   }
 
@@ -167,7 +194,9 @@ export class AdminController {
         activePage: 'stats',
       });
     } catch (error) {
-      return res.status(500).send(`Failed to load statistics: ${error.message}`);
+      return res
+        .status(500)
+        .send(`Failed to load statistics: ${error.message}`);
     }
   }
 
@@ -198,7 +227,56 @@ export class AdminController {
       const logPath = this.adminService.getCombinedLogPath();
       return res.download(logPath, 'combined.log');
     } catch (error) {
-      return res.status(500).send(`Failed to download logs file: ${error.message}`);
+      return res
+        .status(500)
+        .send(`Failed to download logs file: ${error.message}`);
+    }
+  }
+
+  @Get('broadcast')
+  @UseGuards(AdminGuard)
+  async getBroadcast(@Res() res: express.Response) {
+    try {
+      const status = this.adminService.getBroadcastStatus();
+      return res.render('broadcast', {
+        status,
+        activePage: 'broadcast',
+      });
+    } catch (error) {
+      return res
+        .status(500)
+        .send(`Failed to load broadcast page: ${error.message}`);
+    }
+  }
+
+  @Post('broadcast')
+  @UseGuards(AdminGuard)
+  async postBroadcast(
+    @Body('message') message: string,
+    @Body('parseMode') parseMode: 'Markdown' | 'HTML' | 'none',
+    @Res() res: express.Response,
+  ) {
+    try {
+      if (!message || !message.trim()) {
+        return res
+          .status(400)
+          .json({ success: false, error: 'Message content is required.' });
+      }
+      await this.adminService.startBroadcast(message, parseMode);
+      return res.json({ success: true });
+    } catch (error) {
+      return res.status(400).json({ success: false, error: error.message });
+    }
+  }
+
+  @Get('broadcast/status')
+  @UseGuards(AdminGuard)
+  getBroadcastStatus(@Res() res: express.Response) {
+    try {
+      const status = this.adminService.getBroadcastStatus();
+      return res.json(status);
+    } catch (error) {
+      return res.status(500).json({ error: error.message });
     }
   }
 }

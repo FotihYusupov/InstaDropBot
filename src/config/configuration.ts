@@ -51,14 +51,14 @@ export function validate(config: Record<string, unknown>) {
       ...config,
       // Provide sensible defaults if not defined
       PORT: config.PORT ? parseInt(config.PORT as string, 10) : 3000,
-      MAX_CONCURRENT_DOWNLOADS: config.MAX_CONCURRENT_DOWNLOADS 
-        ? parseInt(config.MAX_CONCURRENT_DOWNLOADS as string, 10) 
+      MAX_CONCURRENT_DOWNLOADS: config.MAX_CONCURRENT_DOWNLOADS
+        ? parseInt(config.MAX_CONCURRENT_DOWNLOADS as string, 10)
         : 2,
-      RATE_LIMIT_LIMIT: config.RATE_LIMIT_LIMIT 
-        ? parseInt(config.RATE_LIMIT_LIMIT as string, 10) 
+      RATE_LIMIT_LIMIT: config.RATE_LIMIT_LIMIT
+        ? parseInt(config.RATE_LIMIT_LIMIT as string, 10)
         : 5,
-      RATE_LIMIT_WINDOW_MS: config.RATE_LIMIT_WINDOW_MS 
-        ? parseInt(config.RATE_LIMIT_WINDOW_MS as string, 10) 
+      RATE_LIMIT_WINDOW_MS: config.RATE_LIMIT_WINDOW_MS
+        ? parseInt(config.RATE_LIMIT_WINDOW_MS as string, 10)
         : 60000,
       DOWNLOAD_DIR: config.DOWNLOAD_DIR || './temp_downloads',
       MONGO_URL: config.MONGO_URL || 'mongodb://localhost:27017/instadrop',
@@ -68,10 +68,12 @@ export function validate(config: Record<string, unknown>) {
       ADMIN_PASSWORD: config.ADMIN_PASSWORD || 'admin',
       SESSION_SECRET: config.SESSION_SECRET || 'instadrop_secret_key_12345',
     },
-    { enableImplicitConversion: true }
+    { enableImplicitConversion: true },
   );
 
-  const errors = validateSync(validatedConfig, { skipMissingProperties: false });
+  const errors = validateSync(validatedConfig, {
+    skipMissingProperties: false,
+  });
 
   if (errors.length > 0) {
     throw new Error(`Config validation error: ${errors.toString()}`);

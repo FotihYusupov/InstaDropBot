@@ -1,4 +1,9 @@
-import { Injectable, OnModuleInit, Logger, OnModuleDestroy } from '@nestjs/common';
+import {
+  Injectable,
+  OnModuleInit,
+  Logger,
+  OnModuleDestroy,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Telegraf, Context } from 'telegraf';
 import { YtDlpService } from '../download/yt-dlp.service';
@@ -30,13 +35,16 @@ export class BotService implements OnModuleInit, OnModuleDestroy {
 
     this.bot = new Telegraf<Context>(token);
     this.setupHandlers();
-    
+
     // Launch bot asynchronously
-    this.bot.launch().then(() => {
-      this.logger.log('Telegram Bot successfully launched.');
-    }).catch(err => {
-      this.logger.error('Failed to launch Telegram Bot:', err);
-    });
+    this.bot
+      .launch()
+      .then(() => {
+        this.logger.log('Telegram Bot successfully launched.');
+      })
+      .catch((err) => {
+        this.logger.error('Failed to launch Telegram Bot:', err);
+      });
   }
 
   onModuleDestroy() {
@@ -52,9 +60,14 @@ export class BotService implements OnModuleInit, OnModuleDestroy {
       try {
         const from = ctx.from;
         if (!from) return;
-        await this.usersService.findOrCreateUser(from.id.toString(), from.username, from.first_name, from.last_name);
+        await this.usersService.findOrCreateUser(
+          from.id.toString(),
+          from.username,
+          from.first_name,
+          from.last_name,
+        );
 
-        const welcomeText = 
+        const welcomeText =
           `👋 Hello, ${from.first_name || 'there'}!\n\n` +
           `Welcome to **InstaDrop Bot** 🚀\n\n` +
           `Send me any Instagram URL (Reel, Post, Video, Photo, or Carousel) and I will download and send it back to you!\n\n` +
@@ -69,7 +82,7 @@ export class BotService implements OnModuleInit, OnModuleDestroy {
 
     // Help command
     this.bot.help(async (ctx) => {
-      const helpText = 
+      const helpText =
         `📖 **InstaDrop Bot Help Guide**\n\n` +
         `**How to use:**\n` +
         `1. Open Instagram and find the post, reel, or photo you want to download.\n` +
@@ -77,7 +90,7 @@ export class BotService implements OnModuleInit, OnModuleDestroy {
         `3. Paste and send the link to this bot.\n` +
         `4. Wait a few seconds for the media to be processed and sent back to you!\n\n` +
         `📊 /stats - View general usage and bot metrics.`;
-      
+
       await ctx.replyWithMarkdown(helpText);
     });
 
@@ -85,17 +98,19 @@ export class BotService implements OnModuleInit, OnModuleDestroy {
     this.bot.command('stats', async (ctx) => {
       try {
         const stats = await this.usersService.getStats();
-        const statsText = 
+        const statsText =
           `📊 **InstaDrop Bot Statistics**\n\n` +
           `👥 **Total Users:** ${stats.totalUsers}\n` +
           `📥 **Total Downloads Processed:** ${stats.totalDownloads}\n` +
           `✅ **Successful Downloads:** ${stats.completedDownloads}\n` +
           `❌ **Failed Downloads:** ${stats.failedDownloads}`;
-        
+
         await ctx.replyWithMarkdown(statsText);
       } catch (err) {
         this.logger.error('Error handling /stats command:', err);
-        await ctx.reply('⚠️ Failed to load statistics. Please try again later.');
+        await ctx.reply(
+          '⚠️ Failed to load statistics. Please try again later.',
+        );
       }
     });
 
@@ -107,8 +122,13 @@ export class BotService implements OnModuleInit, OnModuleDestroy {
 
       const validatedUrl = cleanAndValidateInstagramUrl(text);
       if (!validatedUrl) {
-        if (text.toLowerCase().includes('instagram.com') || text.startsWith('http')) {
-          await ctx.reply('❌ Invalid Instagram URL. Please send a valid Post, Reel, or Carousel link.');
+        if (
+          text.toLowerCase().includes('instagram.com') ||
+          text.startsWith('http')
+        ) {
+          await ctx.reply(
+            '❌ Invalid Instagram URL. Please send a valid Post, Reel, or Carousel link.',
+          );
         }
         return;
       }
@@ -118,126 +138,177 @@ export class BotService implements OnModuleInit, OnModuleDestroy {
       // 1. Rate Limiting Check
       const rateLimitStatus = this.rateLimiterService.isRateLimited(userIdStr);
       if (rateLimitStatus.limited) {
-        await ctx.reply(`⚠️ Too many requests. Please wait ${rateLimitStatus.retryAfterSeconds} seconds before sending another link.`);
+        await ctx.reply(
+          `⚠️ Too many requests. Please wait ${rateLimitStatus.retryAfterSeconds} seconds before sending another link.`,
+        );
         return;
       }
 
       // Upsert User
-      await this.usersService.findOrCreateUser(userIdStr, from.username, from.first_name, from.last_name);
+      await this.usersService.findOrCreateUser(
+        userIdStr,
+        from.username,
+        from.first_name,
+        from.last_name,
+      );
 
       // Send initial progress message to user
-      const statusMessage = await ctx.reply('⏳ Adding your request to the download queue...');
+      const statusMessage = await ctx.reply(
+        '⏳ Adding your request to the download queue...',
+      );
 
       // 2. Add to Queue and Process
       const taskId = `dl_${userIdStr}_${Date.now()}`;
       const startTime = Date.now();
-      
-      this.downloadQueueService.add(taskId, async () => {
-        // Update status to Downloading
-        await ctx.telegram.editMessageText(
-          ctx.chat.id,
-          statusMessage.message_id,
-          undefined,
-          '📥 Downloading media from Instagram...'
-        ).catch(() => {});
 
-        // Run download
-        const downloadResult = await this.ytDlpService.downloadMedia(validatedUrl);
-        
-        // Update status to Uploading
-        await ctx.telegram.editMessageText(
-          ctx.chat.id,
-          statusMessage.message_id,
-          undefined,
-          '📤 Sending media to you...'
-        ).catch(() => {});
+      this.downloadQueueService
+        .add(taskId, async () => {
+          // Update status to Downloading
+          await ctx.telegram
+            .editMessageText(
+              ctx.chat.id,
+              statusMessage.message_id,
+              undefined,
+              '📥 Downloading media from Instagram...',
+            )
+            .catch(() => {});
 
-        return downloadResult;
-      })
-      .then(async (result) => {
-        const duration = Date.now() - startTime;
-        const totalSize = result.files.reduce((sum, file) => sum + (file.size || 0), 0);
+          // Run download
+          const downloadResult =
+            await this.ytDlpService.downloadMedia(validatedUrl);
 
-        // Send files to Telegram
-        await this.sendMedia(ctx, result.files);
+          // Update status to Uploading
+          await ctx.telegram
+            .editMessageText(
+              ctx.chat.id,
+              statusMessage.message_id,
+              undefined,
+              '📤 Sending media to you...',
+            )
+            .catch(() => {});
 
-        // Delete status message
-        await ctx.telegram.deleteMessage(ctx.chat.id, statusMessage.message_id).catch(() => {});
+          return downloadResult;
+        })
+        .then(async (result) => {
+          const duration = Date.now() - startTime;
+          const totalSize = result.files.reduce(
+            (sum, file) => sum + (file.size || 0),
+            0,
+          );
 
-        // Log success in DB
-        await this.usersService.logDownload(
-          userIdStr,
-          validatedUrl,
-          'COMPLETED',
-          duration,
-          totalSize,
-          undefined,
-          result.instagramAccount,
-        );
+          // Send files to Telegram
+          await this.sendMedia(ctx, result.files, result.caption);
 
-        // Cleanup
-        await this.ytDlpService.cleanupFolder(result.folderPath);
-      })
-      .catch(async (error: Error) => {
-        const duration = Date.now() - startTime;
-        // Determine user friendly error message
-        let userMessage = '❌ An error occurred while downloading the media. Please try again.';
-        if (error.message === 'PrivateAccount') {
-          userMessage = '🔒 This Instagram post is from a private account. I cannot download private content.';
-        } else if (error.message === 'ContentDeletedOrInvalid') {
-          userMessage = '❌ The content has been deleted or the URL is invalid.';
-        } else if (error.message === 'YtDlpNotInstalled') {
-          userMessage = '⚠️ The server is missing the necessary media downloader dependencies (yt-dlp). Please make sure yt-dlp is installed and configured in your environment.';
-        }
+          // Delete status message
+          await ctx.telegram
+            .deleteMessage(ctx.chat.id, statusMessage.message_id)
+            .catch(() => {});
 
-        // Update status message with error
-        await ctx.telegram.editMessageText(
-          ctx.chat.id,
-          statusMessage.message_id,
-          undefined,
-          userMessage
-        ).catch(async () => {
-          await ctx.reply(userMessage).catch(() => {});
+          // Log success in DB
+          await this.usersService.logDownload(
+            userIdStr,
+            validatedUrl,
+            'COMPLETED',
+            duration,
+            totalSize,
+            undefined,
+            result.instagramAccount,
+          );
+
+          // Cleanup
+          await this.ytDlpService.cleanupFolder(result.folderPath);
+        })
+        .catch(async (error: Error) => {
+          const duration = Date.now() - startTime;
+          // Determine user friendly error message
+          let userMessage =
+            '❌ An error occurred while downloading the media. Please try again.';
+          if (error.message === 'PrivateAccount') {
+            userMessage =
+              '🔒 This Instagram post is from a private account. I cannot download private content.';
+          } else if (error.message === 'ContentDeletedOrInvalid') {
+            userMessage =
+              '❌ The content has been deleted or the URL is invalid.';
+          } else if (error.message === 'YtDlpNotInstalled') {
+            userMessage =
+              '⚠️ The server is missing the necessary media downloader dependencies (yt-dlp). Please make sure yt-dlp is installed and configured in your environment.';
+          }
+
+          // Update status message with error
+          await ctx.telegram
+            .editMessageText(
+              ctx.chat.id,
+              statusMessage.message_id,
+              undefined,
+              userMessage,
+            )
+            .catch(async () => {
+              await ctx.reply(userMessage).catch(() => {});
+            });
+
+          // Log failure in DB
+          await this.usersService.logDownload(
+            userIdStr,
+            validatedUrl,
+            'FAILED',
+            duration,
+            0,
+            error.message,
+          );
         });
-
-        // Log failure in DB
-        await this.usersService.logDownload(userIdStr, validatedUrl, 'FAILED', duration, 0, error.message);
-      });
     });
   }
 
-  private async sendMedia(ctx: Context, files: any[]) {
+  private async sendMedia(ctx: Context, files: any[], caption?: string) {
     try {
+      let formattedCaption = caption;
+      if (formattedCaption && formattedCaption.length > 1024) {
+        formattedCaption = formattedCaption.substring(0, 1020) + '...';
+      }
+
       if (files.length === 1) {
         const file = files[0];
-        const mediaSource = { 
+        const mediaSource = {
           source: createReadStream(file.filePath),
-          filename: file.filename 
+          filename: file.filename,
         };
+
+        const extra: any = {};
+        if (formattedCaption) {
+          extra.caption = formattedCaption;
+        }
+
         if (file.type === 'video') {
-          await ctx.replyWithVideo(mediaSource, { supports_streaming: true });
+          await ctx.replyWithVideo(mediaSource, {
+            supports_streaming: true,
+            ...extra,
+          });
         } else {
-          await ctx.replyWithPhoto(mediaSource);
+          await ctx.replyWithPhoto(mediaSource, extra);
         }
       } else {
         // Send media group (carousel)
-        const mediaGroup = files.map((file) => {
-          const mediaSource = { 
+        const mediaGroup = files.map((file, index) => {
+          const mediaSource = {
             source: createReadStream(file.filePath),
-            filename: file.filename 
+            filename: file.filename,
           };
+
+          const mediaItem: any = {
+            type: file.type === 'video' ? 'video' : 'photo',
+            media: mediaSource,
+          };
+
           if (file.type === 'video') {
-            return {
-              type: 'video',
-              media: mediaSource,
-              supports_streaming: true,
-            };
-          } else {
-            return {
-              type: 'photo',
-              media: mediaSource,
-            };
+            mediaItem.supports_streaming = true;
           }
+
+          // Attach caption to the first item in the media group
+          if (index === 0 && formattedCaption) {
+            mediaItem.caption = formattedCaption;
+          }
+
+          return mediaItem;
         });
 
         await ctx.replyWithMediaGroup(mediaGroup as any);
@@ -246,5 +317,20 @@ export class BotService implements OnModuleInit, OnModuleDestroy {
       this.logger.error('Failed to send media files to user:', err);
       throw new Error('UploadFailed');
     }
+  }
+
+  async sendMessage(
+    telegramId: string,
+    text: string,
+    parseMode?: 'Markdown' | 'HTML',
+  ): Promise<void> {
+    if (!this.bot) {
+      throw new Error('Bot is not initialized');
+    }
+    await this.bot.telegram.sendMessage(
+      telegramId,
+      text,
+      parseMode ? { parse_mode: parseMode } : undefined,
+    );
   }
 }

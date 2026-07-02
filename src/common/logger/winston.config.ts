@@ -8,8 +8,9 @@ export const winstonConfig: WinstonModuleOptions = {
         winston.format.timestamp({ format: 'YYYY-MM-DD HH:mm:ss' }),
         winston.format.colorize(),
         winston.format.printf(
-          (info) => `[${info.timestamp}] [${info.level}] [${info.context || 'App'}]: ${info.message}`
-        )
+          (info) =>
+            `[${info.timestamp}] [${info.level}] [${info.context || 'App'}]: ${info.message}`,
+        ),
       ),
     }),
     new winston.transports.File({
@@ -17,14 +18,14 @@ export const winstonConfig: WinstonModuleOptions = {
       level: 'error',
       format: winston.format.combine(
         winston.format.timestamp(),
-        winston.format.json()
+        winston.format.json(),
       ),
     }),
     new winston.transports.File({
       filename: 'logs/combined.log',
       format: winston.format.combine(
         winston.format.timestamp(),
-        winston.format.json()
+        winston.format.json(),
       ),
     }),
   ],

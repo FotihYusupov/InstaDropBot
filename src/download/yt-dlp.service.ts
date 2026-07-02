@@ -22,20 +22,30 @@ export class YtDlpService implements OnModuleInit {
   private readonly ytDlpPath: string;
 
   constructor(private configService: ConfigService) {
-    this.downloadBaseDir = this.configService.get<string>('DOWNLOAD_DIR') || './temp_downloads';
+    this.downloadBaseDir =
+      this.configService.get<string>('DOWNLOAD_DIR') || './temp_downloads';
     this.ytDlpPath = this.configService.get<string>('YT_DLP_PATH') || 'yt-dlp';
   }
 
   async onModuleInit() {
     try {
       const { stdout } = await execFilePromise(this.ytDlpPath, ['--version']);
-      this.logger.log(`Using yt-dlp binary at "${this.ytDlpPath}" (version: ${stdout.trim()})`);
+      this.logger.log(
+        `Using yt-dlp binary at "${this.ytDlpPath}" (version: ${stdout.trim()})`,
+      );
     } catch (err: any) {
-      this.logger.error(`Failed to verify yt-dlp executable at "${this.ytDlpPath}": ${err.message}`);
+      this.logger.error(
+        `Failed to verify yt-dlp executable at "${this.ytDlpPath}": ${err.message}`,
+      );
     }
   }
 
-  async downloadMedia(url: string): Promise<{ folderPath: string; files: DownloadedMedia[]; instagramAccount?: string }> {
+  async downloadMedia(url: string): Promise<{
+    folderPath: string;
+    files: DownloadedMedia[];
+    instagramAccount?: string;
+    caption?: string;
+  }> {
     const requestId = randomUUID();
     const folderPath = path.resolve(this.downloadBaseDir, requestId);
 
@@ -43,9 +53,14 @@ export class YtDlpService implements OnModuleInit {
     await fs.mkdir(folderPath, { recursive: true });
 
     // Output template for yt-dlp: e.g. 01-title.ext
-    const outputTemplate = path.join(folderPath, '%(autonumber)02d-%(title).50s.%(ext)s');
+    const outputTemplate = path.join(
+      folderPath,
+      '%(autonumber)02d-%(title).50s.%(ext)s',
+    );
 
-    this.logger.log(`Starting download for URL: ${url} to folder: ${folderPath}`);
+    this.logger.log(
+      `Starting download for URL: ${url} to folder: ${folderPath}`,
+    );
 
     try {
       // yt-dlp arguments
@@ -53,15 +68,19 @@ export class YtDlpService implements OnModuleInit {
       // --no-warnings: suppress warning messages
       const args = [
         '--no-warnings',
-        '--max-downloads', '10',
+        '--max-downloads',
+        '10',
         '--write-info-json',
-        '--no-playlist',
-        '-f', 'mp4/best',
-        '-o', outputTemplate,
+        '-f',
+        'mp4/best',
+        '-o',
+        outputTemplate,
       ];
 
       // Handle cookies file if configured or if default cookies.txt exists in root
-      const configCookies = this.configService.get<string>('YT_DLP_COOKIES_PATH');
+      const configCookies = this.configService.get<string>(
+        'YT_DLP_COOKIES_PATH',
+      );
       let cookiesFileToUse: string | null = null;
 
       if (configCookies) {
@@ -70,7 +89,9 @@ export class YtDlpService implements OnModuleInit {
           await fs.access(resolvedConfigCookies);
           cookiesFileToUse = resolvedConfigCookies;
         } catch {
-          this.logger.warn(`Configured cookies file not found at: ${resolvedConfigCookies}`);
+          this.logger.warn(
+            `Configured cookies file not found at: ${resolvedConfigCookies}`,
+          );
         }
       }
 
@@ -86,7 +107,9 @@ export class YtDlpService implements OnModuleInit {
       }
 
       if (cookiesFileToUse) {
-        this.logger.log(`Applying cookies file to download: ${cookiesFileToUse}`);
+        this.logger.log(
+          `Applying cookies file to download: ${cookiesFileToUse}`,
+        );
         args.push('--cookies', cookiesFileToUse);
       }
 
@@ -102,17 +125,24 @@ export class YtDlpService implements OnModuleInit {
       const dirContents = await fs.readdir(folderPath);
       const files: DownloadedMedia[] = [];
       let instagramAccount: string | undefined = undefined;
+      let caption: string | undefined = undefined;
 
       for (const file of dirContents) {
         const filePath = path.join(folderPath, file);
-        
+
         if (file.endsWith('.info.json')) {
           try {
             const content = await fs.readFile(filePath, 'utf8');
             const data = JSON.parse(content);
-            instagramAccount = data.uploader || data.channel || data.uploader_id;
-          } catch (err) {
-            this.logger.warn(`Failed to parse info.json at ${filePath}: ${err.message}`);
+            instagramAccount =
+              data.uploader || data.channel || data.uploader_id;
+            if (!caption) {
+              caption = data.description || data.title;
+            }
+          } catch (err: any) {
+            this.logger.warn(
+              `Failed to parse info.json at ${filePath}: ${err.message}`,
+            );
           }
           continue; // Skip info.json from the media list
         }
@@ -124,7 +154,9 @@ export class YtDlpService implements OnModuleInit {
 
           if (['.jpg', '.jpeg', '.png', '.webp', '.heic'].includes(ext)) {
             type = 'photo';
-          } else if (['.mp4', '.mov', '.mkv', '.3gp', '.avi', '.webm'].includes(ext)) {
+          } else if (
+            ['.mp4', '.mov', '.mkv', '.3gp', '.avi', '.webm'].includes(ext)
+          ) {
             type = 'video';
           }
 
@@ -144,30 +176,33 @@ export class YtDlpService implements OnModuleInit {
         throw new Error('No media files found after download.');
       }
 
-      this.logger.log(`Successfully downloaded ${files.length} files for URL: ${url}`);
-      return { folderPath, files, instagramAccount };
-
+      this.logger.log(
+        `Successfully downloaded ${files.length} files for URL: ${url}`,
+      );
+      return { folderPath, files, instagramAccount, caption };
     } catch (error: any) {
       // Clean up the folder immediately if download failed
       await this.cleanupFolder(folderPath);
 
       const errorMessage = error.stderr || error.message || '';
-      this.logger.error(`yt-dlp download failed for URL ${url}. Error: ${errorMessage}`);
+      this.logger.error(
+        `yt-dlp download failed for URL ${url}. Error: ${errorMessage}`,
+      );
 
       // Handle specific error cases
       if (error.code === 'ENOENT' || errorMessage.includes('ENOENT')) {
         throw new Error('YtDlpNotInstalled');
       } else if (
-        errorMessage.includes('Private video') || 
-        errorMessage.includes('login') || 
-        errorMessage.includes('Sign in') || 
+        errorMessage.includes('Private video') ||
+        errorMessage.includes('login') ||
+        errorMessage.includes('Sign in') ||
         errorMessage.includes('profile is private')
       ) {
         throw new Error('PrivateAccount');
       } else if (
-        errorMessage.includes('404') || 
-        errorMessage.includes('Not Found') || 
-        errorMessage.includes('does not exist') || 
+        errorMessage.includes('404') ||
+        errorMessage.includes('Not Found') ||
+        errorMessage.includes('does not exist') ||
         errorMessage.includes('Unavailable')
       ) {
         throw new Error('ContentDeletedOrInvalid');

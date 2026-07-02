@@ -16,13 +16,16 @@ export class DownloadQueueService {
   private readonly maxConcurrency: number;
 
   constructor(private configService: ConfigService) {
-    this.maxConcurrency = this.configService.get<number>('MAX_CONCURRENT_DOWNLOADS') || 2;
+    this.maxConcurrency =
+      this.configService.get<number>('MAX_CONCURRENT_DOWNLOADS') || 2;
   }
 
   async add<T>(id: string, task: () => Promise<T>): Promise<T> {
     return new Promise<T>((resolve, reject) => {
       this.queue.push({ id, task, resolve, reject });
-      this.logger.log(`Task ${id} added to download queue. Queue size: ${this.queue.length}`);
+      this.logger.log(
+        `Task ${id} added to download queue. Queue size: ${this.queue.length}`,
+      );
       this.processQueue();
     });
   }
@@ -36,9 +39,12 @@ export class DownloadQueueService {
     if (!item) return;
 
     this.activeCount++;
-    this.logger.log(`Processing task ${item.id} from queue. Active: ${this.activeCount}, Queue size: ${this.queue.length}`);
+    this.logger.log(
+      `Processing task ${item.id} from queue. Active: ${this.activeCount}, Queue size: ${this.queue.length}`,
+    );
 
-    item.task()
+    item
+      .task()
       .then((res) => {
         item.resolve(res);
       })
@@ -47,7 +53,9 @@ export class DownloadQueueService {
       })
       .finally(() => {
         this.activeCount--;
-        this.logger.log(`Finished task ${item.id}. Active: ${this.activeCount}`);
+        this.logger.log(
+          `Finished task ${item.id}. Active: ${this.activeCount}`,
+        );
         this.processQueue();
       });
   }

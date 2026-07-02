@@ -22,7 +22,9 @@ async function bootstrap() {
   // Configure session middleware
   app.use(
     session({
-      secret: configService.get<string>('SESSION_SECRET') || 'instadrop_secret_key_12345',
+      secret:
+        configService.get<string>('SESSION_SECRET') ||
+        'instadrop_secret_key_12345',
       resave: false,
       saveUninitialized: false,
       cookie: { maxAge: 24 * 60 * 60 * 1000 }, // 1 day

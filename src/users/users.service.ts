@@ -31,7 +31,9 @@ export class UsersService {
           lastActivityAt: now,
         });
         await user.save();
-        this.logger.log(`Created new user: ${telegramId} (${username || 'no-username'})`);
+        this.logger.log(
+          `Created new user: ${telegramId} (${username || 'no-username'})`,
+        );
       } else {
         let changed = false;
         if (username && user.username !== username) {
@@ -49,7 +51,9 @@ export class UsersService {
         user.lastActivityAt = now;
         await user.save();
         if (changed) {
-          this.logger.log(`Updated profile for user ${telegramId}: username=${username}, first=${firstName}, last=${lastName}`);
+          this.logger.log(
+            `Updated profile for user ${telegramId}: username=${username}, first=${firstName}, last=${lastName}`,
+          );
         }
       }
       return user;
@@ -80,21 +84,40 @@ export class UsersService {
         instagramAccount,
       });
       await download.save();
-      this.logger.log(`Logged download for user ${telegramId}: URL=${url}, Status=${status}`);
+      this.logger.log(
+        `Logged download for user ${telegramId}: URL=${url}, Status=${status}`,
+      );
       return download;
     } catch (error) {
-      this.logger.error(`Error logging download for user ${telegramId}:`, error);
+      this.logger.error(
+        `Error logging download for user ${telegramId}:`,
+        error,
+      );
       throw error;
     }
   }
 
-  async getStats(): Promise<{ totalUsers: number; totalDownloads: number; completedDownloads: number; failedDownloads: number }> {
+  async getStats(): Promise<{
+    totalUsers: number;
+    totalDownloads: number;
+    completedDownloads: number;
+    failedDownloads: number;
+  }> {
     try {
       const totalUsers = await this.userModel.countDocuments().exec();
       const totalDownloads = await this.downloadModel.countDocuments().exec();
-      const completedDownloads = await this.downloadModel.countDocuments({ status: 'COMPLETED' }).exec();
-      const failedDownloads = await this.downloadModel.countDocuments({ status: 'FAILED' }).exec();
-      return { totalUsers, totalDownloads, completedDownloads, failedDownloads };
+      const completedDownloads = await this.downloadModel
+        .countDocuments({ status: 'COMPLETED' })
+        .exec();
+      const failedDownloads = await this.downloadModel
+        .countDocuments({ status: 'FAILED' })
+        .exec();
+      return {
+        totalUsers,
+        totalDownloads,
+        completedDownloads,
+        failedDownloads,
+      };
     } catch (error) {
       this.logger.error('Error fetching statistics:', error);
       throw error;

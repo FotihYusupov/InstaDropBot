@@ -40,6 +40,12 @@
       <span>Analytics</span>
     </a>
 
+    <a href="/admin/broadcast" 
+       class="flex items-center space-x-3 px-4 py-2.5 rounded-lg text-sm font-medium transition-all group <%= activePage === 'broadcast' ? 'bg-brand-600 text-white shadow-md shadow-brand-500/10' : 'text-slate-400 hover:bg-slate-800 hover:text-slate-200' %>">
+      <i class="fa-solid fa-paper-plane w-5 <%= activePage === 'broadcast' ? 'text-white' : 'text-slate-400 group-hover:text-slate-200' %>"></i>
+      <span>Broadcast</span>
+    </a>
+
     <a href="/admin/logs" 
        class="flex items-center space-x-3 px-4 py-2.5 rounded-lg text-sm font-medium transition-all group <%= activePage === 'logs' ? 'bg-brand-600 text-white shadow-md shadow-brand-500/10' : 'text-slate-400 hover:bg-slate-800 hover:text-slate-200' %>">
       <i class="fa-solid fa-terminal w-5 <%= activePage === 'logs' ? 'text-white' : 'text-slate-400 group-hover:text-slate-200' %>"></i>

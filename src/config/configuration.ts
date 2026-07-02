@@ -29,6 +29,9 @@ class EnvironmentVariables {
   YT_DLP_PATH: string;
 
   @IsString()
+  YT_DLP_COOKIES_PATH: string;
+
+  @IsString()
   @IsNotEmpty()
   ADMIN_USERNAME: string;
 
@@ -60,6 +63,7 @@ export function validate(config: Record<string, unknown>) {
       DOWNLOAD_DIR: config.DOWNLOAD_DIR || './temp_downloads',
       MONGO_URL: config.MONGO_URL || 'mongodb://localhost:27017/instadrop',
       YT_DLP_PATH: config.YT_DLP_PATH || 'yt-dlp',
+      YT_DLP_COOKIES_PATH: config.YT_DLP_COOKIES_PATH || '',
       ADMIN_USERNAME: config.ADMIN_USERNAME || 'admin',
       ADMIN_PASSWORD: config.ADMIN_PASSWORD || 'admin',
       SESSION_SECRET: config.SESSION_SECRET || 'instadrop_secret_key_12345',

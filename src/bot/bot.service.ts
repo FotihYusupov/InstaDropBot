@@ -210,19 +210,34 @@ export class BotService implements OnModuleInit, OnModuleDestroy {
     try {
       if (files.length === 1) {
         const file = files[0];
-        const mediaSource = { source: createReadStream(file.filePath) };
+        const mediaSource = { 
+          source: createReadStream(file.filePath),
+          filename: file.filename 
+        };
         if (file.type === 'video') {
-          await ctx.replyWithVideo(mediaSource);
+          await ctx.replyWithVideo(mediaSource, { supports_streaming: true });
         } else {
           await ctx.replyWithPhoto(mediaSource);
         }
       } else {
         // Send media group (carousel)
         const mediaGroup = files.map((file) => {
-          return {
-            type: file.type === 'video' ? 'video' : 'photo',
-            media: { source: createReadStream(file.filePath) },
+          const mediaSource = { 
+            source: createReadStream(file.filePath),
+            filename: file.filename 
           };
+          if (file.type === 'video') {
+            return {
+              type: 'video',
+              media: mediaSource,
+              supports_streaming: true,
+            };
+          } else {
+            return {
+              type: 'photo',
+              media: mediaSource,
+            };
+          }
         });
 
         await ctx.replyWithMediaGroup(mediaGroup as any);

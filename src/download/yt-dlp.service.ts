@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { execFile } from 'child_process';
 import { promisify } from 'util';
@@ -16,7 +16,7 @@ export interface DownloadedMedia {
 }
 
 @Injectable()
-export class YtDlpService {
+export class YtDlpService implements OnModuleInit {
   private readonly logger = new Logger(YtDlpService.name);
   private readonly downloadBaseDir: string;
   private readonly ytDlpPath: string;
@@ -24,6 +24,15 @@ export class YtDlpService {
   constructor(private configService: ConfigService) {
     this.downloadBaseDir = this.configService.get<string>('DOWNLOAD_DIR') || './temp_downloads';
     this.ytDlpPath = this.configService.get<string>('YT_DLP_PATH') || 'yt-dlp';
+  }
+
+  async onModuleInit() {
+    try {
+      const { stdout } = await execFilePromise(this.ytDlpPath, ['--version']);
+      this.logger.log(`Using yt-dlp binary at "${this.ytDlpPath}" (version: ${stdout.trim()})`);
+    } catch (err: any) {
+      this.logger.error(`Failed to verify yt-dlp executable at "${this.ytDlpPath}": ${err.message}`);
+    }
   }
 
   async downloadMedia(url: string): Promise<{ folderPath: string; files: DownloadedMedia[]; instagramAccount?: string }> {
@@ -46,9 +55,43 @@ export class YtDlpService {
         '--no-warnings',
         '--max-downloads', '10',
         '--write-info-json',
+        '--no-playlist',
+        '-f', 'mp4/best',
         '-o', outputTemplate,
-        url,
       ];
+
+      // Handle cookies file if configured or if default cookies.txt exists in root
+      const configCookies = this.configService.get<string>('YT_DLP_COOKIES_PATH');
+      let cookiesFileToUse: string | null = null;
+
+      if (configCookies) {
+        const resolvedConfigCookies = path.resolve(configCookies);
+        try {
+          await fs.access(resolvedConfigCookies);
+          cookiesFileToUse = resolvedConfigCookies;
+        } catch {
+          this.logger.warn(`Configured cookies file not found at: ${resolvedConfigCookies}`);
+        }
+      }
+
+      if (!cookiesFileToUse) {
+        // Fallback to checking default cookies.txt in the root of the project
+        const defaultCookies = path.resolve('cookies.txt');
+        try {
+          await fs.access(defaultCookies);
+          cookiesFileToUse = defaultCookies;
+        } catch {
+          // No cookies file found, continue without --cookies
+        }
+      }
+
+      if (cookiesFileToUse) {
+        this.logger.log(`Applying cookies file to download: ${cookiesFileToUse}`);
+        args.push('--cookies', cookiesFileToUse);
+      }
+
+      // Add URL as last argument
+      args.push(url);
 
       this.logger.debug(`Executing: ${this.ytDlpPath} ${args.join(' ')}`);
 

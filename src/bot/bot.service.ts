@@ -261,9 +261,18 @@ export class BotService implements OnModuleInit, OnModuleDestroy {
 
   private async sendMedia(ctx: Context, files: any[], caption?: string) {
     try {
-      let formattedCaption = caption;
-      if (formattedCaption && formattedCaption.length > 1024) {
-        formattedCaption = formattedCaption.substring(0, 1020) + '...';
+      let formattedCaption = '';
+      if (caption && caption.trim()) {
+        formattedCaption = caption.trim();
+        const footer = '\n\n@InstaDropuz_bot';
+        const maxTextLength = 1024 - footer.length;
+        if (formattedCaption.length > maxTextLength) {
+          formattedCaption =
+            formattedCaption.substring(0, maxTextLength - 3) + '...';
+        }
+        formattedCaption += footer;
+      } else {
+        formattedCaption = '@InstaDropuz_bot';
       }
 
       if (files.length === 1) {
@@ -273,10 +282,7 @@ export class BotService implements OnModuleInit, OnModuleDestroy {
           filename: file.filename,
         };
 
-        const extra: any = {};
-        if (formattedCaption) {
-          extra.caption = formattedCaption;
-        }
+        const extra: any = { caption: formattedCaption };
 
         if (file.type === 'video') {
           await ctx.replyWithVideo(mediaSource, {
